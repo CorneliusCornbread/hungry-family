@@ -1,5 +1,5 @@
 use axum::Router;
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
 async fn main() {
@@ -10,7 +10,10 @@ async fn main() {
         )
         .init();
 
-    let app = Router::new().fallback_service(ServeDir::new("static"));
+    let app = Router::new()
+        // Your API routes will go here, e.g.:
+        // .route("/api/...", get(handler))
+        .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:800")
         .await
