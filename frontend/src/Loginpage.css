@@ -1,0 +1,110 @@
+/* LoginPage.css */
+.login-bg {
+    min-height: 100vh;
+    background: #0f0f11;
+    display: grid;
+    place-items: center;
+    font-family: 'Georgia', serif;
+    color: #e8e8f0;
+}
+
+.login-card {
+    background: #18181c;
+    border: 1px solid #2a2a30;
+    border-radius: 10px;
+    padding: 2.5rem 2rem;
+    width: min(380px, 92vw);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.login-logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.75rem;
+    color: #e8e8f0;
+}
+
+.login-logo span {
+    color: #7c6af7;
+}
+
+.login-card label {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #7a7a8c;
+    margin-bottom: 0.4rem;
+}
+
+.login-card input[type='text'],
+.login-card input[type='password'] {
+    display: block;
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    background: #0f0f11;
+    border: 1px solid #2a2a30;
+    border-radius: 8px;
+    color: #e8e8f0;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 1.25rem;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.login-card input:focus {
+    border-color: #7c6af7;
+}
+
+.login-card button[type='submit'] {
+    width: 100%;
+    padding: 0.75rem;
+    background: #7c6af7;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    margin-top: 0.25rem;
+}
+
+.login-card button[type='submit']:hover:not(:disabled) {
+    background: #5a4fd4;
+}
+
+.login-card button[type='submit']:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.login-error {
+    background: rgba(247, 106, 106, 0.12);
+    border: 1px solid rgba(247, 106, 106, 0.3);
+    color: #f76a6a;
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.9rem;
+    margin-bottom: 1.25rem;
+}
+
+/* Spinner used by ProtectedRoute while session check is in-flight */
+.spinner {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border: 3px solid #2a2a30;
+    border-top-color: #7c6af7;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

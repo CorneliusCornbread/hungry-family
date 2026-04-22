@@ -1,3 +1,6 @@
+CREATE DATABASE hungry_family;
+USE hungry_family;
+
 -- Stores first (no dependencies)
 CREATE TABLE stores (
     store_id   SERIAL PRIMARY KEY,

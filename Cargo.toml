@@ -4,9 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+argon2 = "0.5"
 axum = "0.8.8"
+axum-extra = { version = "0.10", features = ["cookie"] }
 features = "0.10.0"
-sqlx = "0.8.6"
+hex = "0.4.3"
+rand = { version = "0.8", features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.149"
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "postgres", "time"] }
+time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.5.0", features = [
     "rt-multi-thread",
     "macros",
