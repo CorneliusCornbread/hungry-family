@@ -1,6 +1,3 @@
-CREATE DATABASE hungry_family;
-USE hungry_family;
-
 -- Stores first (no dependencies)
 CREATE TABLE stores (
     store_id   SERIAL PRIMARY KEY,
@@ -8,12 +5,28 @@ CREATE TABLE stores (
     address    TEXT NOT NULL
 );
 
--- Users
+-- Users must come before accounts
 CREATE TABLE users (
     user_id      SERIAL PRIMARY KEY,
     firstname    TEXT NOT NULL CHECK (LENGTH(TRIM(firstname)) > 0),
     lastname     TEXT NOT NULL CHECK (LENGTH(TRIM(lastname)) > 0),
     email        TEXT NOT NULL UNIQUE CHECK (LENGTH(TRIM(email)) > 0)
+);
+
+-- Auth accounts (depends on users)
+CREATE TABLE accounts (
+    account_id    SERIAL PRIMARY KEY,
+    user_id       INT NOT NULL REFERENCES users(user_id),
+    username      TEXT NOT NULL UNIQUE CHECK (LENGTH(TRIM(username)) > 0),
+    password_hash TEXT NOT NULL
+);
+
+-- Sessions (depends on accounts)
+CREATE TABLE sessions (
+    token       TEXT PRIMARY KEY,
+    account_id  INT NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Products (depends on stores)

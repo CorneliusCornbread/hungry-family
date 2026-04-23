@@ -7,7 +7,7 @@ use argon2::{
 
 fn main() {
     let password = std::env::args()
-        .nth(1)
+        .nth(0)
         .expect("Usage: hash_password <password>");
 
     let salt = SaltString::generate(&mut OsRng);

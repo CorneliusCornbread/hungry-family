@@ -5,7 +5,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_extra::extract::CookieJar;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use sqlx::PgPool;
 use time::OffsetDateTime;
 
@@ -41,7 +41,7 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 
 /// Generate a cryptographically-random 32-byte hex session token.
 pub fn generate_session_token() -> String {
-    let bytes: [u8; 32] = rand::thread_rng().r#gen();
+    let bytes: [u8; 32] = rand::rng().random();
     hex::encode(bytes)
 }
 

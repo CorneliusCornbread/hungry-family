@@ -19,7 +19,7 @@ struct ErrorBody {
 }
 
 #[derive(Serialize)]
-struct AccountBody {
+pub(crate) struct AccountBody {
     account_id: i32,
     user_id: i32,
     username: String,
