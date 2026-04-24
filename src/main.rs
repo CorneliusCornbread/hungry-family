@@ -45,7 +45,7 @@ async fn main() {
         )
         .route(
             "/api/planner/stores/{store_id}/products",
-            get(routes::planner_products),
+            get(routes::planner_products).post(routes::create_store_product),
         )
         .route(
             "/api/planner/stores/{store_id}/product-layout",

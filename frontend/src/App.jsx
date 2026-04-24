@@ -87,6 +87,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
   })
 
   const [zoneLabel, setZoneLabel] = useState('')
+  const [newProductName, setNewProductName] = useState('')
   const [productId, setProductId] = useState('')
   const [productZone, setProductZone] = useState('')
 
@@ -127,6 +128,16 @@ function StorePlanner({ onNavigate, onLogout, username }) {
     if (!selectedStoreId) return
     loadProducts(selectedStoreId).catch((error) => setPageError(error.message))
   }, [selectedStoreId])
+
+  useEffect(() => {
+    if (!productId) {
+      setProductZone('')
+      return
+    }
+
+    const selectedProduct = products.find((product) => String(product.product_id) === String(productId))
+    setProductZone(selectedProduct?.aisle_id ? String(selectedProduct.aisle_id) : '')
+  }, [productId, products])
 
   async function handleStoreSubmit(event) {
     event.preventDefault()
@@ -212,6 +223,27 @@ function StorePlanner({ onNavigate, onLogout, username }) {
     })
 
     await loadProducts(selectedStoreId)
+  }
+
+  async function handleCreateProduct(event) {
+    event.preventDefault()
+    if (!selectedStoreId) return
+
+    const name = newProductName.trim()
+    if (!name) {
+      setPageError('Product name is required.')
+      return
+    }
+
+    setPageError('')
+    const product = await api(`/api/planner/stores/${selectedStoreId}/products`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+
+    setNewProductName('')
+    await loadProducts(selectedStoreId)
+    setProductId(String(product.product_id))
   }
 
   return (
@@ -391,8 +423,22 @@ function StorePlanner({ onNavigate, onLogout, username }) {
         </section>
 
         <section className="panel">
-          <h2>3) Associate Existing Products</h2>
-          <p className="muted">Products are loaded from the database for the selected store.</p>
+          <h2>3) Define + Place Products</h2>
+          <p className="muted">Create products for this store, then assign each one to a store location.</p>
+
+          <form onSubmit={handleCreateProduct} className="form-stack">
+            <label>
+              New product name
+              <input
+                value={newProductName}
+                onChange={(event) => setNewProductName(event.target.value)}
+                placeholder="e.g. Greek Yogurt"
+              />
+            </label>
+            <button type="submit" className="secondary">
+              Add product
+            </button>
+          </form>
 
           <form onSubmit={handleAssignProduct}>
             <label>
