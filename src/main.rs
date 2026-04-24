@@ -3,7 +3,7 @@ mod routes;
 
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{get, patch, post},
 };
 use sqlx::postgres::PgPoolOptions;
 use tower_http::services::{ServeDir, ServeFile};
@@ -32,11 +32,27 @@ async fn main() {
     let api = Router::new()
         .route("/api/auth/me", get(routes::me))
         .route("/api/auth/login", post(routes::login))
-        .route("/api/auth/logout", post(routes::logout));
+        .route("/api/auth/logout", post(routes::logout))
+        .route("/api/planner/stores", get(routes::planner_stores))
+        .route("/api/planner/stores", post(routes::create_planner_store))
+        .route(
+            "/api/planner/stores/{store_id}/layouts",
+            post(routes::create_store_layout),
+        )
+        .route(
+            "/api/planner/layouts/{layout_id}",
+            patch(routes::update_store_layout).delete(routes::delete_store_layout),
+        )
+        .route(
+            "/api/planner/stores/{store_id}/products",
+            get(routes::planner_products),
+        )
+        .route(
+            "/api/planner/stores/{store_id}/product-layout",
+            patch(routes::assign_product_layout),
+        );
 
     let app = api
-        // In production the Vite build outputs to ./static — serve it here.
-        // All unmatched routes fall back to index.html for client-side routing.
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
         .with_state(pool);
 
