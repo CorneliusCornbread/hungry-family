@@ -510,6 +510,7 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
   const [standaloneSearch, setStandaloneSearch] = useState('')
   const [standaloneProducts, setStandaloneProducts] = useState([])
   const [newStandaloneName, setNewStandaloneName] = useState('')
+  const [standaloneAisleId, setStandaloneAisleId] = useState('')
   const [pageError, setPageError] = useState('')
 
   const selectedStore = useMemo(
@@ -555,6 +556,16 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     loadStandaloneProducts(standaloneSearch).catch((error) => setPageError(error.message))
   }, [standaloneSearch])
 
+  useEffect(() => {
+    if (!standaloneAisleId) return
+    const exists = (selectedStore?.layouts ?? []).some(
+      (layout) => String(layout.layout_id) === String(standaloneAisleId),
+    )
+    if (!exists) {
+      setStandaloneAisleId('')
+    }
+  }, [selectedStore, standaloneAisleId])
+
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase()
     if (!query) return products
@@ -591,7 +602,10 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
   async function addStandaloneToStore(standaloneProductId) {
     await api(`/api/planner/stores/${selectedStoreId}/products/from-standalone`, {
       method: 'POST',
-      body: JSON.stringify({ standalone_product_id: standaloneProductId }),
+      body: JSON.stringify({
+        standalone_product_id: standaloneProductId,
+        aisle_id: standaloneAisleId ? Number(standaloneAisleId) : null,
+      }),
     })
     await loadStoreDetails(selectedStoreId)
   }
@@ -692,6 +706,18 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
           <label>
             Search standalone products
             <input value={standaloneSearch} onChange={(event) => setStandaloneSearch(event.target.value)} />
+          </label>
+
+          <label>
+            Assign aisle when adding to store
+            <select value={standaloneAisleId} onChange={(event) => setStandaloneAisleId(event.target.value)}>
+              <option value="">Unassigned</option>
+              {(selectedStore?.layouts ?? []).map((layout) => (
+                <option key={layout.layout_id} value={layout.layout_id}>
+                  {layout.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <ul className="list">
