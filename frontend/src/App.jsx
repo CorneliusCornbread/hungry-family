@@ -95,6 +95,9 @@ function StorePlanner({ onNavigate, onLogout, username }) {
   const [editLayoutId, setEditLayoutId] = useState(null)
   const [editLabel, setEditLabel] = useState('')
   const [editSortOrder, setEditSortOrder] = useState(1)
+  const [editStoreId, setEditStoreId] = useState(null)
+  const [editStoreName, setEditStoreName] = useState('')
+  const [editStoreAddress, setEditStoreAddress] = useState('')
 
   const selectedStore = useMemo(
     () => stores.find((store) => store.store_id === selectedStoreId) ?? null,
@@ -106,9 +109,11 @@ function StorePlanner({ onNavigate, onLogout, username }) {
   async function loadStores() {
     const nextStores = await api('/api/planner/stores')
     setStores(nextStores)
-    if (nextStores.length > 0) {
-      setSelectedStoreId((current) => current ?? nextStores[0].store_id)
-    }
+    setSelectedStoreId((current) => {
+      if (nextStores.length === 0) return null
+      if (current && nextStores.some((store) => store.store_id === current)) return current
+      return nextStores[0].store_id
+    })
   }
 
   async function loadProducts(storeId) {
@@ -132,7 +137,12 @@ function StorePlanner({ onNavigate, onLogout, username }) {
         if (cancelled) return
         setStores(nextStores)
         if (nextStores.length > 0) {
-          setSelectedStoreId((current) => current ?? nextStores[0].store_id)
+          setSelectedStoreId((current) => {
+            if (current && nextStores.some((store) => store.store_id === current)) return current
+            return nextStores[0].store_id
+          })
+        } else {
+          setSelectedStoreId(null)
         }
       })
       .catch((error) => {
@@ -218,6 +228,39 @@ function StorePlanner({ onNavigate, onLogout, username }) {
     })
 
     setZoneLabel('')
+    await loadStores()
+  }
+
+  async function handleSaveStore() {
+    if (!editStoreId) return
+
+    const name = editStoreName.trim()
+    const address = editStoreAddress.trim()
+    if (!name || !address) {
+      setPageError('Store name and address are required.')
+      return
+    }
+
+    setPageError('')
+    await api(`/api/planner/stores/${editStoreId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, address }),
+    })
+
+    setEditStoreId(null)
+    setEditStoreName('')
+    setEditStoreAddress('')
+    await loadStores()
+  }
+
+  async function handleDeleteStore(storeId) {
+    setPageError('')
+    await api(`/api/planner/stores/${storeId}`, { method: 'DELETE' })
+    if (selectedStoreId === storeId) {
+      setProducts([])
+      setProductId('')
+      setProductZone('')
+    }
     await loadStores()
   }
 
@@ -364,11 +407,65 @@ function StorePlanner({ onNavigate, onLogout, username }) {
                 key={store.store_id}
                 className={`list-item ${selectedStoreId === store.store_id ? 'active-store' : ''}`}
               >
-                <strong>{store.name}</strong>
-                <div className="muted">{store.address}</div>
-                <button className="secondary" type="button" onClick={() => setSelectedStoreId(store.store_id)}>
-                  {selectedStoreId === store.store_id ? 'Selected' : 'Manage layout'}
-                </button>
+                {editStoreId === store.store_id ? (
+                  <>
+                    <label>
+                      Store name
+                      <input value={editStoreName} onChange={(event) => setEditStoreName(event.target.value)} />
+                    </label>
+                    <label>
+                      Address
+                      <input
+                        value={editStoreAddress}
+                        onChange={(event) => setEditStoreAddress(event.target.value)}
+                      />
+                    </label>
+                    <div className="row">
+                      <button type="button" onClick={handleSaveStore}>
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          setEditStoreId(null)
+                          setEditStoreName('')
+                          setEditStoreAddress('')
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <strong>{store.name}</strong>
+                    <div className="muted">{store.address}</div>
+                    <div className="row">
+                      <button className="secondary" type="button" onClick={() => setSelectedStoreId(store.store_id)}>
+                        {selectedStoreId === store.store_id ? 'Selected' : 'Manage layout'}
+                      </button>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => {
+                          setEditStoreId(store.store_id)
+                          setEditStoreName(store.name)
+                          setEditStoreAddress(store.address)
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => handleDeleteStore(store.store_id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </>
+                )}
               </li>
             ))}
           </ul>
