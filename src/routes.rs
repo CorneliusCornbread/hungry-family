@@ -46,7 +46,7 @@ pub async fn login(
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> Response {
-    info!("Login attempt!");
+    info!("Login attempt");
     let row = sqlx::query!(
         "SELECT account_id, password_hash FROM accounts WHERE username = $1",
         body.username,
@@ -55,14 +55,10 @@ pub async fn login(
     .await;
 
     let (authed, account_id) = match row {
-        Ok(Some(r)) => {
-            info!("Account found!");
-
-            (
-                verify_password(&body.password, &r.password_hash),
-                r.account_id,
-            )
-        }
+        Ok(Some(r)) => (
+            verify_password(&body.password, &r.password_hash),
+            r.account_id,
+        ),
         Ok(None) => {
             let _ = verify_password(
                 &body.password,
