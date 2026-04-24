@@ -499,24 +499,13 @@ function replaceTo(path, setPathname) {
 export default function App() {
   const { account, logout } = useAuth()
   const [pathname, setPathname] = useState(window.location.pathname)
+  const normalizedPathname = pathname === '/index.html' ? '/' : pathname
 
   useEffect(() => {
     const onPopState = () => setPathname(window.location.pathname)
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
-
-  useEffect(() => {
-    if (account === null) return
-
-    if (pathname === '/') {
-      if (account === false) {
-        replaceTo('/login', setPathname)
-      } else {
-        replaceTo('/dashboard', setPathname)
-      }
-    }
-  }, [account, pathname])
 
   if (account === null) {
     return (
@@ -526,7 +515,16 @@ export default function App() {
     )
   }
 
-  if (pathname === '/login') {
+  if (normalizedPathname === '/') {
+    if (account === false) {
+      replaceTo('/login', setPathname)
+    } else {
+      replaceTo('/dashboard', setPathname)
+    }
+    return null
+  }
+
+  if (normalizedPathname === '/login') {
     if (account !== false) {
       replaceTo('/dashboard', setPathname)
       return null
@@ -534,7 +532,7 @@ export default function App() {
     return <LoginPage />
   }
 
-  if (pathname === '/store-planner') {
+  if (normalizedPathname === '/store-planner') {
     if (account === false) {
       replaceTo('/login', setPathname)
       return null
@@ -552,7 +550,7 @@ export default function App() {
     )
   }
 
-  if (pathname === '/dashboard') {
+  if (normalizedPathname === '/dashboard') {
     if (account === false) {
       replaceTo('/login', setPathname)
       return null
