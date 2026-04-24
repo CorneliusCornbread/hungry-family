@@ -519,6 +519,8 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
   const [activeListSearch, setActiveListSearch] = useState('')
   const [editQuantities, setEditQuantities] = useState({})
   const [pageError, setPageError] = useState('')
+  const [pendingPastList, setPendingPastList] = useState(null)
+  const [isApplyingPastList, setIsApplyingPastList] = useState(false)
 
   const selectedStore = useMemo(
     () => stores.find((store) => store.store_id === selectedStoreId) ?? null,
@@ -641,56 +643,62 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     await loadStoreDetails(selectedStoreId)
   }
 
-  async function startFromPastList(pastList) {
+  async function applyPastListToActiveList(pastList, strategy = 'add') {
     if (!selectedStoreId) return
 
     const activeItems = shoppingList?.active_list?.items ?? []
-    let strategy = 'add'
 
-    if (activeItems.length > 0) {
-      const response = window
-        .prompt(
-          'Your current active list already has items. Type "overwrite" to replace it, "add" to append past items, or "cancel" to stop.',
-          'add',
-        )
-        ?.trim()
-        .toLowerCase()
-
-      if (!response || response === 'cancel') {
-        return
-      }
-
-      if (response !== 'overwrite' && response !== 'add') {
-        setPageError('Please type "overwrite", "add", or "cancel" when starting from a past list.')
-        return
-      }
-
-      strategy = response
-    }
-
+    setIsApplyingPastList(true)
     setPageError('')
+    try {
+      if (strategy === 'overwrite') {
+        await Promise.all(
+          activeItems.map((item) =>
+            api(`/api/planner/stores/${selectedStoreId}/shopping-list/items/${item.item_id}`, {
+              method: 'DELETE',
+            }),
+          ),
+        )
+      }
 
-    if (strategy === 'overwrite') {
       await Promise.all(
-        activeItems.map((item) =>
-          api(`/api/planner/stores/${selectedStoreId}/shopping-list/items/${item.item_id}`, {
-            method: 'DELETE',
+        (pastList.items ?? []).map((item) =>
+          api(`/api/planner/stores/${selectedStoreId}/shopping-list/items`, {
+            method: 'POST',
+            body: JSON.stringify({ store_product_id: item.store_product_id, quantity: item.quantity }),
           }),
         ),
       )
+
+      await loadStoreDetails(selectedStoreId)
+    } catch (error) {
+      setPageError(error.message)
+    } finally {
+      setIsApplyingPastList(false)
+      setPendingPastList(null)
+    }
+  }
+
+  async function startFromPastList(pastList) {
+    const activeItems = shoppingList?.active_list?.items ?? []
+    if (activeItems.length === 0) {
+      await applyPastListToActiveList(pastList, 'add')
+      return
     }
 
-    await Promise.all(
-      (pastList.items ?? []).map((item) =>
-        api(`/api/planner/stores/${selectedStoreId}/shopping-list/items`, {
-          method: 'POST',
-          body: JSON.stringify({ store_product_id: item.store_product_id, quantity: item.quantity }),
-        }),
-      ),
-    )
-
-    await loadStoreDetails(selectedStoreId)
+    setPendingPastList(pastList)
   }
+
+  async function handlePastListDialogAction(strategy) {
+    if (strategy === 'cancel') {
+      setPendingPastList(null)
+      return
+    }
+
+    if (!pendingPastList) return
+    await applyPastListToActiveList(pendingPastList, strategy)
+  }
+
 
   const filteredActiveItems = useMemo(() => {
     const query = activeListSearch.trim().toLowerCase()
@@ -886,6 +894,38 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
           </div>
         </section>
       </div>
+
+      {pendingPastList && (
+        <div className="dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="past-list-dialog-title">
+          <div className="dialog-card">
+            <h3 id="past-list-dialog-title">Use past list #{pendingPastList.list_id}?</h3>
+            <p className="muted">
+              Your current active list already has items. Would you like to replace it or add these past-list items?
+            </p>
+            <div className="dialog-actions">
+              <button type="button" onClick={() => handlePastListDialogAction('overwrite')} disabled={isApplyingPastList}>
+                Overwrite active list
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => handlePastListDialogAction('add')}
+                disabled={isApplyingPastList}
+              >
+                Add to active list
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => handlePastListDialogAction('cancel')}
+                disabled={isApplyingPastList}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
