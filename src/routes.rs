@@ -7,6 +7,7 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use time::Duration;
+use tracing::info;
 
 use crate::auth::{
     CurrentAccount, SESSION_COOKIE, SESSION_DURATION_DAYS, create_session, delete_session,
@@ -41,12 +42,13 @@ pub struct LoginRequest {
     password: String,
 }
 
+#[tracing::instrument(skip_all, fields(username = body.username))]
 pub async fn login(
     State(pool): State<PgPool>,
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> Response {
-    // 1. Look up account by username.
+    info!("Login attempt!");
     let row = sqlx::query!(
         "SELECT account_id, password_hash FROM accounts WHERE username = $1",
         body.username,
@@ -55,10 +57,14 @@ pub async fn login(
     .await;
 
     let (authed, account_id) = match row {
-        Ok(Some(r)) => (
-            verify_password(&body.password, &r.password_hash),
-            r.account_id,
-        ),
+        Ok(Some(r)) => {
+            info!("Account found!");
+
+            (
+                verify_password(&body.password, &r.password_hash),
+                r.account_id,
+            )
+        }
         Ok(None) => {
             // Dummy verify to prevent timing-based username enumeration.
             let _ = verify_password(

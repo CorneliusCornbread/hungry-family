@@ -27,3 +27,6 @@ target
 
 # .env file, used for keys, config, etc
 .env
+
+# VSCode config
+/.vscode

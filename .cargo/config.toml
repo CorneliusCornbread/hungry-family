@@ -2,6 +2,6 @@
 runner = [
     "sh",
     "-c",
-    "sudo setcap 'cap_net_bind_service=+ep' \"$1\" && \"$1\"",
+    "sudo setcap 'cap_net_bind_service=+ep' \"$1\" && exec \"$@\"",
     "--",
 ]

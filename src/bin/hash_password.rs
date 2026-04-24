@@ -6,9 +6,13 @@ use argon2::{
 };
 
 fn main() {
+    dbg!(std::env::args().collect::<Vec<_>>());
+
     let password = std::env::args()
-        .nth(0)
+        .nth(1)
         .expect("Usage: hash_password <password>");
+
+    println!("Hashing password: {}", password);
 
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
