@@ -488,17 +488,22 @@ function StorePlanner({ onNavigate, onLogout, username }) {
 }
 
 function groupProductsByAisle(products, layouts) {
-  const map = new Map(layouts.map((layout) => [layout.layout_id, layout.label]))
+  const map = new Map(layouts.map((layout) => [layout.layout_id, layout]))
   const groups = new Map()
 
   for (const product of products) {
     const key = product.aisle_id || 'unassigned'
-    const label = product.aisle_id ? map.get(product.aisle_id) || 'Unknown aisle' : 'Unassigned'
-    if (!groups.has(key)) groups.set(key, { label, products: [] })
+    const layout = product.aisle_id ? map.get(product.aisle_id) : null
+    const label = layout?.label || (product.aisle_id ? 'Unknown aisle' : 'Unassigned')
+    const sortOrder = layout?.sort_order ?? Number.MAX_SAFE_INTEGER
+    if (!groups.has(key)) groups.set(key, { label, sortOrder, products: [] })
     groups.get(key).products.push(product)
   }
 
-  return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label))
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+    return a.label.localeCompare(b.label)
+  })
 }
 
 function ShoppingLists({ onNavigate, onLogout, username }) {
@@ -647,10 +652,16 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     const groups = new Map()
     for (const item of filteredActiveItems) {
       const label = item.aisle_label ?? 'Unassigned'
-      if (!groups.has(label)) groups.set(label, [])
-      groups.get(label).push(item)
+      const sortOrder = item.aisle_sort_order ?? Number.MAX_SAFE_INTEGER
+      if (!groups.has(label)) groups.set(label, { sortOrder, items: [] })
+      groups.get(label).items.push(item)
     }
-    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+    return Array.from(groups.entries())
+      .sort((a, b) => {
+        if (a[1].sortOrder !== b[1].sortOrder) return a[1].sortOrder - b[1].sortOrder
+        return a[0].localeCompare(b[0])
+      })
+      .map(([label, value]) => [label, value.items])
   }, [filteredActiveItems])
 
   return (

@@ -198,6 +198,7 @@ pub struct ShoppingListItemBody {
     quantity: i32,
     aisle_id: Option<i32>,
     aisle_label: Option<String>,
+    aisle_sort_order: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -297,6 +298,7 @@ fn group_list_rows(rows: Vec<sqlx::postgres::PgRow>) -> Vec<ShoppingListSummaryB
                 quantity: row.get("quantity"),
                 aisle_id: row.get("aisle_id"),
                 aisle_label: row.get("aisle_label"),
+                aisle_sort_order: row.get("aisle_sort_order"),
             });
         }
     }
@@ -681,14 +683,19 @@ pub async fn store_shopping_list(
             i.quantity,
             p.name AS product_name,
             sp.aisle_id,
-            a.label AS aisle_label
+            a.label AS aisle_label,
+            a.sort_order AS aisle_sort_order
         FROM store_shopping_lists l
         LEFT JOIN store_shopping_list_items i ON i.list_id = l.list_id
         LEFT JOIN store_products sp ON sp.store_product_id = i.store_product_id
         LEFT JOIN standalone_products p ON p.standalone_product_id = sp.standalone_product_id
         LEFT JOIN store_layouts a ON a.layout_id = sp.aisle_id
         WHERE l.store_id = $1
-        ORDER BY l.created_at DESC, i.created_at ASC
+        ORDER BY
+            l.created_at DESC,
+            COALESCE(a.sort_order, 2147483647) ASC,
+            p.name ASC,
+            i.created_at ASC
         "#,
     )
     .bind(store_id)
