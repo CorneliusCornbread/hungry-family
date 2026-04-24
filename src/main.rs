@@ -36,6 +36,10 @@ async fn main() {
         .route("/api/planner/stores", get(routes::planner_stores))
         .route("/api/planner/stores", post(routes::create_planner_store))
         .route(
+            "/api/planner/stores/{store_id}",
+            patch(routes::update_planner_store).delete(routes::delete_planner_store),
+        )
+        .route(
             "/api/planner/stores/{store_id}/layouts",
             post(routes::create_store_layout),
         )

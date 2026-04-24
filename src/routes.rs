@@ -164,6 +164,12 @@ pub struct CreateStoreRequest {
 }
 
 #[derive(Deserialize)]
+pub struct UpdateStoreRequest {
+    name: String,
+    address: String,
+}
+
+#[derive(Deserialize)]
 pub struct CreateLayoutRequest {
     label: String,
 }
@@ -374,6 +380,51 @@ pub async fn create_planner_store(
         address: row.get("address"),
         layouts: Vec::new(),
     }))
+}
+
+pub async fn update_planner_store(
+    State(pool): State<PgPool>,
+    Path(store_id): Path<i32>,
+    Json(body): Json<UpdateStoreRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let name = body.name.trim();
+    let address = body.address.trim();
+    if name.is_empty() || address.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let affected = sqlx::query("UPDATE stores SET name = $1, address = $2 WHERE store_id = $3")
+        .bind(name)
+        .bind(address)
+        .bind(store_id)
+        .execute(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .rows_affected();
+
+    if affected == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn delete_planner_store(
+    State(pool): State<PgPool>,
+    Path(store_id): Path<i32>,
+) -> Result<StatusCode, StatusCode> {
+    let affected = sqlx::query("DELETE FROM stores WHERE store_id = $1")
+        .bind(store_id)
+        .execute(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .rows_affected();
+
+    if affected == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn create_store_layout(
