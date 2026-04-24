@@ -115,7 +115,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
     const nextProducts = await api(`/api/planner/stores/${storeId}/products`)
     setProducts(nextProducts)
     if (nextProducts.length > 0) {
-      setProductId(String(nextProducts[0].product_id))
+      setProductId(String(nextProducts[0].store_product_id))
     } else {
       setProductId('')
     }
@@ -136,7 +136,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
       return
     }
 
-    const selectedProduct = products.find((product) => String(product.product_id) === String(productId))
+    const selectedProduct = products.find((product) => String(product.store_product_id) === String(productId))
     setProductZone(selectedProduct?.aisle_id ? String(selectedProduct.aisle_id) : '')
   }, [productId, products])
 
@@ -218,7 +218,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
     await api(`/api/planner/stores/${selectedStoreId}/product-layout`, {
       method: 'PATCH',
       body: JSON.stringify({
-        product_id: Number(productId),
+        store_product_id: Number(productId),
         layout_id: productZone ? Number(productZone) : null,
       }),
     })
@@ -244,7 +244,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
 
     setNewProductName('')
     await loadProducts(selectedStoreId)
-    setProductId(String(product.product_id))
+    setProductId(String(product.store_product_id))
   }
 
   return (
@@ -447,7 +447,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
               <select value={productId} onChange={(event) => setProductId(event.target.value)}>
                 {products.length === 0 && <option value="">No products for this store</option>}
                 {products.map((product) => (
-                  <option key={product.product_id} value={product.product_id}>
+                  <option key={product.store_product_id} value={product.store_product_id}>
                     {product.name}
                   </option>
                 ))}
@@ -474,7 +474,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
             {products.map((product) => {
               const layout = availableZones.find((zone) => zone.layout_id === product.aisle_id)
               return (
-                <li key={product.product_id} className="list-item">
+                <li key={product.store_product_id} className="list-item">
                   <strong>{product.name}</strong>
                   <div className="muted">Location: {layout?.label ?? 'Unassigned'}</div>
                 </li>
@@ -566,7 +566,7 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
   async function addToList(productId) {
     await api(`/api/planner/stores/${selectedStoreId}/shopping-list/items`, {
       method: 'POST',
-      body: JSON.stringify({ product_id: productId, quantity: 1 }),
+      body: JSON.stringify({ store_product_id: productId, quantity: 1 }),
     })
     await loadStoreDetails(selectedStoreId)
   }
@@ -664,9 +664,9 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
                 <strong>{group.label}</strong>
                 <ul className="list">
                   {group.products.map((product) => (
-                    <li key={product.product_id} className="list-item">
+                    <li key={product.store_product_id} className="list-item">
                       <div>{product.name}</div>
-                      <button className="secondary" type="button" onClick={() => addToList(product.product_id)}>
+                      <button className="secondary" type="button" onClick={() => addToList(product.store_product_id)}>
                         Add to active list
                       </button>
                     </li>

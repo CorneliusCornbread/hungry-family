@@ -150,7 +150,8 @@ pub struct PlannerStoreBody {
 
 #[derive(Serialize)]
 pub struct PlannerProductBody {
-    product_id: i32,
+    store_product_id: i32,
+    standalone_product_id: i32,
     name: String,
     store_id: i32,
     aisle_id: Option<i32>,
@@ -175,7 +176,7 @@ pub struct UpdateLayoutRequest {
 
 #[derive(Deserialize)]
 pub struct AssignProductRequest {
-    product_id: i32,
+    store_product_id: i32,
     layout_id: Option<i32>,
 }
 
@@ -192,7 +193,7 @@ pub struct ProductSearchQuery {
 #[derive(Serialize)]
 pub struct ShoppingListItemBody {
     item_id: i32,
-    product_id: i32,
+    store_product_id: i32,
     product_name: String,
     quantity: i32,
     aisle_id: Option<i32>,
@@ -216,7 +217,7 @@ pub struct StoreShoppingListBody {
 
 #[derive(Deserialize)]
 pub struct AddShoppingListItemRequest {
-    product_id: i32,
+    store_product_id: i32,
     quantity: Option<i32>,
 }
 
@@ -286,7 +287,7 @@ fn group_list_rows(rows: Vec<sqlx::postgres::PgRow>) -> Vec<ShoppingListSummaryB
         if let Some(item_id) = maybe_item_id {
             entry.items.push(ShoppingListItemBody {
                 item_id,
-                product_id: row.get("product_id"),
+                store_product_id: row.get("store_product_id"),
                 product_name: row.get("product_name"),
                 quantity: row.get("quantity"),
                 aisle_id: row.get("aisle_id"),
@@ -456,24 +457,36 @@ pub async fn planner_products(
     Path(store_id): Path<i32>,
 ) -> Result<Json<Vec<PlannerProductBody>>, StatusCode> {
     let rows = sqlx::query(
-        "SELECT product_id, name, store_id, aisle_id FROM products WHERE store_id = $1 AND is_active = TRUE ORDER BY name ASC",
+        r#"
+        SELECT
+            sp.store_product_id,
+            sp.store_id,
+            sp.standalone_product_id,
+            sp.aisle_id,
+            p.name
+        FROM store_products sp
+        JOIN standalone_products p ON p.standalone_product_id = sp.standalone_product_id
+        WHERE sp.store_id = $1 AND sp.is_active = TRUE
+        ORDER BY p.name ASC
+        "#,
     )
     .bind(store_id)
     .fetch_all(&pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let products = rows
+    let store_products = rows
         .into_iter()
         .map(|row| PlannerProductBody {
-            product_id: row.get("product_id"),
+            store_product_id: row.get("store_product_id"),
+            standalone_product_id: row.get("standalone_product_id"),
             name: row.get("name"),
             store_id: row.get("store_id"),
             aisle_id: row.get("aisle_id"),
         })
         .collect();
 
-    Ok(Json(products))
+    Ok(Json(store_products))
 }
 
 pub async fn create_store_product(
@@ -487,28 +500,32 @@ pub async fn create_store_product(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let _ = sqlx::query(
-        "INSERT INTO standalone_products (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
+    let standalone = sqlx::query(
+        "INSERT INTO standalone_products (name) VALUES ($1)
+         ON CONFLICT (name) DO UPDATE SET is_active = TRUE
+         RETURNING standalone_product_id, name",
     )
     .bind(name)
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let standalone_product_id: i32 = standalone.get("standalone_product_id");
     let row = sqlx::query(
-        "INSERT INTO products (name, store_id) VALUES ($1, $2)
-         ON CONFLICT (store_id, name) DO UPDATE SET is_active = TRUE
-         RETURNING product_id, name, store_id, aisle_id",
+        "INSERT INTO store_products (store_id, standalone_product_id) VALUES ($1, $2)
+         ON CONFLICT (store_id, standalone_product_id) DO UPDATE SET is_active = TRUE
+         RETURNING store_product_id, store_id, standalone_product_id, aisle_id",
     )
-    .bind(name)
     .bind(store_id)
+    .bind(standalone_product_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(PlannerProductBody {
-        product_id: row.get("product_id"),
-        name: row.get("name"),
+        store_product_id: row.get("store_product_id"),
+        standalone_product_id: row.get("standalone_product_id"),
+        name: standalone.get("name"),
         store_id: row.get("store_id"),
         aisle_id: row.get("aisle_id"),
     }))
@@ -534,15 +551,16 @@ pub async fn assign_product_layout(
         }
     }
 
-    let affected =
-        sqlx::query("UPDATE products SET aisle_id = $1 WHERE product_id = $2 AND store_id = $3")
-            .bind(body.layout_id)
-            .bind(body.product_id)
-            .bind(store_id)
-            .execute(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-            .rows_affected();
+    let affected = sqlx::query(
+        "UPDATE store_products SET aisle_id = $1 WHERE store_product_id = $2 AND store_id = $3",
+    )
+    .bind(body.layout_id)
+    .bind(body.store_product_id)
+    .bind(store_id)
+    .execute(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .rows_affected();
 
     if affected == 0 {
         return Err(StatusCode::NOT_FOUND);
@@ -618,20 +636,22 @@ pub async fn create_store_product_from_standalone(
 
     let name: String = standalone_row.get("name");
     let row = sqlx::query(
-        "INSERT INTO products (name, store_id, aisle_id) VALUES ($1, $2, $3)
-         ON CONFLICT (store_id, name) DO UPDATE SET aisle_id = COALESCE(EXCLUDED.aisle_id, products.aisle_id)
-         RETURNING product_id, name, store_id, aisle_id",
+        "INSERT INTO store_products (store_id, standalone_product_id, aisle_id) VALUES ($1, $2, $3)
+         ON CONFLICT (store_id, standalone_product_id) DO UPDATE
+         SET aisle_id = COALESCE(EXCLUDED.aisle_id, store_products.aisle_id), is_active = TRUE
+         RETURNING store_product_id, store_id, standalone_product_id, aisle_id",
     )
-    .bind(name)
     .bind(store_id)
+    .bind(body.standalone_product_id)
     .bind(body.aisle_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(PlannerProductBody {
-        product_id: row.get("product_id"),
-        name: row.get("name"),
+        store_product_id: row.get("store_product_id"),
+        standalone_product_id: row.get("standalone_product_id"),
+        name,
         store_id: row.get("store_id"),
         aisle_id: row.get("aisle_id"),
     }))
@@ -652,15 +672,16 @@ pub async fn store_shopping_list(
             l.created_at,
             l.closed_at,
             i.item_id,
-            i.product_id,
+            i.store_product_id,
             i.quantity,
             p.name AS product_name,
-            p.aisle_id,
+            sp.aisle_id,
             a.label AS aisle_label
         FROM store_shopping_lists l
         LEFT JOIN store_shopping_list_items i ON i.list_id = l.list_id
-        LEFT JOIN products p ON p.product_id = i.product_id
-        LEFT JOIN store_layouts a ON a.layout_id = p.aisle_id
+        LEFT JOIN store_products sp ON sp.store_product_id = i.store_product_id
+        LEFT JOIN standalone_products p ON p.standalone_product_id = sp.standalone_product_id
+        LEFT JOIN store_layouts a ON a.layout_id = sp.aisle_id
         WHERE l.store_id = $1
         ORDER BY l.created_at DESC, i.created_at ASC
         "#,
@@ -693,14 +714,14 @@ pub async fn add_store_shopping_list_item(
 
     sqlx::query(
         r#"
-        INSERT INTO store_shopping_list_items (list_id, product_id, quantity)
+        INSERT INTO store_shopping_list_items (list_id, store_product_id, quantity)
         VALUES ($1, $2, $3)
-        ON CONFLICT (list_id, product_id)
+        ON CONFLICT (list_id, store_product_id)
         DO UPDATE SET quantity = store_shopping_list_items.quantity + EXCLUDED.quantity
         "#,
     )
     .bind(list_id)
-    .bind(body.product_id)
+    .bind(body.store_product_id)
     .bind(quantity)
     .execute(&pool)
     .await
