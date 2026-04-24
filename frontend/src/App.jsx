@@ -63,6 +63,7 @@ function Dashboard({ onNavigate, onLogout, username }) {
         <p className="muted">This is a starter dashboard shell. We can add cards/widgets here over time.</p>
         <div className="shell-actions">
           <button onClick={() => onNavigate('/store-planner')}>Open Store Planner</button>
+          <button onClick={() => onNavigate('/shopping-lists')}>Open Shopping Lists</button>
           <button className="secondary" onClick={onLogout}>
             Log out
           </button>
@@ -486,6 +487,250 @@ function StorePlanner({ onNavigate, onLogout, username }) {
   )
 }
 
+function groupProductsByAisle(products, layouts) {
+  const map = new Map(layouts.map((layout) => [layout.layout_id, layout.label]))
+  const groups = new Map()
+
+  for (const product of products) {
+    const key = product.aisle_id || 'unassigned'
+    const label = product.aisle_id ? map.get(product.aisle_id) || 'Unknown aisle' : 'Unassigned'
+    if (!groups.has(key)) groups.set(key, { label, products: [] })
+    groups.get(key).products.push(product)
+  }
+
+  return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label))
+}
+
+function ShoppingLists({ onNavigate, onLogout, username }) {
+  const [stores, setStores] = useState([])
+  const [selectedStoreId, setSelectedStoreId] = useState(null)
+  const [products, setProducts] = useState([])
+  const [shoppingList, setShoppingList] = useState(null)
+  const [productSearch, setProductSearch] = useState('')
+  const [standaloneSearch, setStandaloneSearch] = useState('')
+  const [standaloneProducts, setStandaloneProducts] = useState([])
+  const [newStandaloneName, setNewStandaloneName] = useState('')
+  const [pageError, setPageError] = useState('')
+
+  const selectedStore = useMemo(
+    () => stores.find((store) => store.store_id === selectedStoreId) ?? null,
+    [stores, selectedStoreId],
+  )
+
+  async function loadStores() {
+    const nextStores = await api('/api/planner/stores')
+    setStores(nextStores)
+    if (!selectedStoreId && nextStores.length > 0) {
+      setSelectedStoreId(nextStores[0].store_id)
+    }
+  }
+
+  async function loadStoreDetails(storeId) {
+    const [nextProducts, nextList] = await Promise.all([
+      api(`/api/planner/stores/${storeId}/products`),
+      api(`/api/planner/stores/${storeId}/shopping-list`),
+    ])
+    setProducts(nextProducts)
+    setShoppingList(nextList)
+  }
+
+  async function loadStandaloneProducts(query = '') {
+    const params = new URLSearchParams()
+    if (query.trim()) params.set('q', query.trim())
+    setStandaloneProducts(await api(`/api/planner/standalone-products?${params.toString()}`))
+  }
+
+  useEffect(() => {
+    loadStores()
+      .then(() => loadStandaloneProducts())
+      .catch((error) => setPageError(error.message))
+  }, [])
+
+  useEffect(() => {
+    if (!selectedStoreId) return
+    loadStoreDetails(selectedStoreId).catch((error) => setPageError(error.message))
+  }, [selectedStoreId])
+
+  useEffect(() => {
+    loadStandaloneProducts(standaloneSearch).catch((error) => setPageError(error.message))
+  }, [standaloneSearch])
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase()
+    if (!query) return products
+    return products.filter((product) => product.name.toLowerCase().includes(query))
+  }, [productSearch, products])
+
+  const groupedProducts = groupProductsByAisle(filteredProducts, selectedStore?.layouts ?? [])
+
+  async function addToList(productId) {
+    await api(`/api/planner/stores/${selectedStoreId}/shopping-list/items`, {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, quantity: 1 }),
+    })
+    await loadStoreDetails(selectedStoreId)
+  }
+
+  async function closeList() {
+    await api(`/api/planner/stores/${selectedStoreId}/shopping-list/close`, { method: 'POST' })
+    await loadStoreDetails(selectedStoreId)
+  }
+
+  async function addStandaloneDefinition(event) {
+    event.preventDefault()
+    const name = newStandaloneName.trim()
+    if (!name) return
+    await api('/api/planner/standalone-products', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+    setNewStandaloneName('')
+    await loadStandaloneProducts(standaloneSearch)
+  }
+
+  async function addStandaloneToStore(standaloneProductId) {
+    await api(`/api/planner/stores/${selectedStoreId}/products/from-standalone`, {
+      method: 'POST',
+      body: JSON.stringify({ standalone_product_id: standaloneProductId }),
+    })
+    await loadStoreDetails(selectedStoreId)
+  }
+
+  return (
+    <main className="planner-page">
+      <header className="planner-header">
+        <div>
+          <h1>Shopping Lists</h1>
+          <p className="lead">
+            Signed in as <strong>{username}</strong>. Each store maintains one active shopping list.
+          </p>
+        </div>
+        <div className="header-actions">
+          <button className="secondary" onClick={() => onNavigate('/dashboard')}>
+            Back to Dashboard
+          </button>
+          <button className="secondary logout" onClick={onLogout}>
+            Log out
+          </button>
+        </div>
+      </header>
+
+      <p className="error">{pageError}</p>
+
+      <div className="planner-grid">
+        <section className="panel">
+          <h2>1) Active + Past Lists</h2>
+          <label>
+            Store
+            <select value={selectedStoreId ?? ''} onChange={(event) => setSelectedStoreId(Number(event.target.value))}>
+              {stores.map((store) => (
+                <option key={store.store_id} value={store.store_id}>
+                  {store.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="list-item">
+            <strong>Active list #{shoppingList?.active_list?.list_id ?? '-'}</strong>
+            <div className="muted">{shoppingList?.active_list?.items?.length ?? 0} products in progress.</div>
+            <button type="button" onClick={closeList} disabled={!shoppingList?.active_list?.items?.length}>
+              Close list and create next list
+            </button>
+          </div>
+
+          <ul className="list">
+            {(shoppingList?.past_lists ?? []).length === 0 && <li className="muted">No closed lists yet.</li>}
+            {(shoppingList?.past_lists ?? []).map((list) => (
+              <li key={list.list_id} className="list-item">
+                <strong>List #{list.list_id}</strong>
+                <div className="muted">{list.items.length} items</div>
+                <div className="muted">{list.items.map((item) => item.product_name).join(', ') || 'No items'}</div>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="panel">
+          <h2>2) Browse Products by Aisle</h2>
+          <label>
+            Search products
+            <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
+          </label>
+          <ul className="list">
+            {groupedProducts.length === 0 && <li className="muted">No products found.</li>}
+            {groupedProducts.map((group) => (
+              <li key={group.label} className="list-item">
+                <strong>{group.label}</strong>
+                <ul className="list">
+                  {group.products.map((product) => (
+                    <li key={product.product_id} className="list-item">
+                      <div>{product.name}</div>
+                      <button className="secondary" type="button" onClick={() => addToList(product.product_id)}>
+                        Add to active list
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="panel">
+          <h2>3) Add Standalone Product to Store</h2>
+          <form onSubmit={addStandaloneDefinition} className="form-stack">
+            <label>
+              Define standalone product
+              <input value={newStandaloneName} onChange={(event) => setNewStandaloneName(event.target.value)} />
+            </label>
+            <button type="submit" className="secondary">
+              Save standalone product
+            </button>
+          </form>
+
+          <label>
+            Search standalone products
+            <input value={standaloneSearch} onChange={(event) => setStandaloneSearch(event.target.value)} />
+          </label>
+
+          <ul className="list">
+            {standaloneProducts.length === 0 && <li className="muted">No standalone products found.</li>}
+            {standaloneProducts.map((product) => (
+              <li key={product.standalone_product_id} className="list-item">
+                <strong>{product.name}</strong>
+                <button
+                  className="secondary"
+                  type="button"
+                  disabled={!selectedStoreId}
+                  onClick={() => addStandaloneToStore(product.standalone_product_id)}
+                >
+                  Add to selected store
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="panel">
+          <h2>4) Current Active List Contents</h2>
+          <ul className="list">
+            {(shoppingList?.active_list?.items ?? []).length === 0 && <li className="muted">No items yet.</li>}
+            {(shoppingList?.active_list?.items ?? []).map((item) => (
+              <li key={item.item_id} className="list-item">
+                <strong>{item.product_name}</strong>
+                <div className="muted">
+                  Qty {item.quantity} • {item.aisle_label ?? 'Unassigned'}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </main>
+  )
+}
+
 function navigateTo(path, setPathname) {
   window.history.pushState({}, '', path)
   setPathname(path)
@@ -540,6 +785,24 @@ export default function App() {
 
     return (
       <StorePlanner
+        username={account.username}
+        onLogout={async () => {
+          await logout()
+          replaceTo('/login', setPathname)
+        }}
+        onNavigate={(path) => navigateTo(path, setPathname)}
+      />
+    )
+  }
+
+  if (normalizedPathname === '/shopping-lists') {
+    if (account === false) {
+      replaceTo('/login', setPathname)
+      return null
+    }
+
+    return (
+      <ShoppingLists
         username={account.username}
         onLogout={async () => {
           await logout()

@@ -50,6 +50,26 @@ async fn main() {
         .route(
             "/api/planner/stores/{store_id}/product-layout",
             patch(routes::assign_product_layout),
+        )
+        .route(
+            "/api/planner/standalone-products",
+            get(routes::standalone_products).post(routes::create_standalone_product),
+        )
+        .route(
+            "/api/planner/stores/{store_id}/products/from-standalone",
+            post(routes::create_store_product_from_standalone),
+        )
+        .route(
+            "/api/planner/stores/{store_id}/shopping-list",
+            get(routes::store_shopping_list),
+        )
+        .route(
+            "/api/planner/stores/{store_id}/shopping-list/items",
+            post(routes::add_store_shopping_list_item),
+        )
+        .route(
+            "/api/planner/stores/{store_id}/shopping-list/close",
+            post(routes::close_store_shopping_list),
         );
 
     let app = api
