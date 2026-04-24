@@ -178,6 +178,11 @@ pub struct AssignProductRequest {
     layout_id: Option<i32>,
 }
 
+#[derive(Deserialize)]
+pub struct CreateProductRequest {
+    name: String,
+}
+
 pub async fn planner_stores(
     CurrentAccount(_): CurrentAccount,
     State(pool): State<PgPool>,
@@ -352,6 +357,34 @@ pub async fn planner_products(
         .collect();
 
     Ok(Json(products))
+}
+
+pub async fn create_store_product(
+    CurrentAccount(_): CurrentAccount,
+    State(pool): State<PgPool>,
+    Path(store_id): Path<i32>,
+    Json(body): Json<CreateProductRequest>,
+) -> Result<Json<PlannerProductBody>, StatusCode> {
+    let name = body.name.trim();
+    if name.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let row = sqlx::query(
+        "INSERT INTO products (name, store_id) VALUES ($1, $2) RETURNING product_id, name, store_id, aisle_id",
+    )
+    .bind(name)
+    .bind(store_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(PlannerProductBody {
+        product_id: row.get("product_id"),
+        name: row.get("name"),
+        store_id: row.get("store_id"),
+        aisle_id: row.get("aisle_id"),
+    }))
 }
 
 pub async fn assign_product_layout(

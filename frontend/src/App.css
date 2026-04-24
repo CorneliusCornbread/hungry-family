@@ -153,6 +153,10 @@ button.secondary {
   flex: 1;
 }
 
+.form-stack {
+  margin-bottom: 0.9rem;
+}
+
 .active-store {
   border-color: #14b8a6;
   background: #f0fdfa;
