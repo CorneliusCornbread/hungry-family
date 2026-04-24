@@ -177,6 +177,23 @@ button.secondary {
   min-height: 1.2rem;
 }
 
+.aisle-groups {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.aisle-group {
+  border: 2px solid #99f6e4;
+  border-radius: 12px;
+  padding: 0.6rem;
+  background: #f0fdfa;
+}
+
+.aisle-group h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
 @media (max-width: 700px) {
   .planner-header,
   .shell-actions,

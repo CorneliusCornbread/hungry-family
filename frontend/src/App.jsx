@@ -511,6 +511,8 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
   const [standaloneProducts, setStandaloneProducts] = useState([])
   const [newStandaloneName, setNewStandaloneName] = useState('')
   const [standaloneAisleId, setStandaloneAisleId] = useState('')
+  const [activeListSearch, setActiveListSearch] = useState('')
+  const [editQuantities, setEditQuantities] = useState({})
   const [pageError, setPageError] = useState('')
 
   const selectedStore = useMemo(
@@ -566,6 +568,14 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     }
   }, [selectedStore, standaloneAisleId])
 
+  useEffect(() => {
+    const next = {}
+    for (const item of shoppingList?.active_list?.items ?? []) {
+      next[item.item_id] = item.quantity
+    }
+    setEditQuantities(next)
+  }, [shoppingList?.active_list?.list_id, shoppingList?.active_list?.items])
+
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase()
     if (!query) return products
@@ -609,6 +619,39 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     })
     await loadStoreDetails(selectedStoreId)
   }
+
+  async function updateActiveListItem(itemId) {
+    const quantity = Number(editQuantities[itemId]) || 1
+    await api(`/api/planner/stores/${selectedStoreId}/shopping-list/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantity }),
+    })
+    await loadStoreDetails(selectedStoreId)
+  }
+
+  async function removeActiveListItem(itemId) {
+    await api(`/api/planner/stores/${selectedStoreId}/shopping-list/items/${itemId}`, {
+      method: 'DELETE',
+    })
+    await loadStoreDetails(selectedStoreId)
+  }
+
+  const filteredActiveItems = useMemo(() => {
+    const query = activeListSearch.trim().toLowerCase()
+    const items = shoppingList?.active_list?.items ?? []
+    if (!query) return items
+    return items.filter((item) => item.product_name.toLowerCase().includes(query))
+  }, [activeListSearch, shoppingList?.active_list?.items])
+
+  const groupedActiveItems = useMemo(() => {
+    const groups = new Map()
+    for (const item of filteredActiveItems) {
+      const label = item.aisle_label ?? 'Unassigned'
+      if (!groups.has(label)) groups.set(label, [])
+      groups.get(label).push(item)
+    }
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [filteredActiveItems])
 
   return (
     <main className="planner-page">
@@ -740,17 +783,42 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
 
         <section className="panel">
           <h2>4) Current Active List Contents</h2>
-          <ul className="list">
-            {(shoppingList?.active_list?.items ?? []).length === 0 && <li className="muted">No items yet.</li>}
-            {(shoppingList?.active_list?.items ?? []).map((item) => (
-              <li key={item.item_id} className="list-item">
-                <strong>{item.product_name}</strong>
-                <div className="muted">
-                  Qty {item.quantity} • {item.aisle_label ?? 'Unassigned'}
-                </div>
-              </li>
+          <label>
+            Search active list
+            <input value={activeListSearch} onChange={(event) => setActiveListSearch(event.target.value)} />
+          </label>
+
+          <div className="aisle-groups">
+            {groupedActiveItems.length === 0 && <p className="muted">No items yet.</p>}
+            {groupedActiveItems.map(([aisleLabel, items]) => (
+              <section key={aisleLabel} className="aisle-group">
+                <h3>{aisleLabel}</h3>
+                <ul className="list">
+                  {items.map((item) => (
+                    <li key={item.item_id} className="list-item">
+                      <strong>{item.product_name}</strong>
+                      <div className="row">
+                        <input
+                          type="number"
+                          min="1"
+                          value={editQuantities[item.item_id] ?? item.quantity}
+                          onChange={(event) =>
+                            setEditQuantities((prev) => ({ ...prev, [item.item_id]: event.target.value }))
+                          }
+                        />
+                        <button type="button" className="secondary" onClick={() => updateActiveListItem(item.item_id)}>
+                          Update Qty
+                        </button>
+                        <button type="button" className="secondary" onClick={() => removeActiveListItem(item.item_id)}>
+                          Remove
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         </section>
       </div>
     </main>

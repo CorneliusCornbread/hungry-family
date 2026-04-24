@@ -68,6 +68,11 @@ async fn main() {
             post(routes::add_store_shopping_list_item),
         )
         .route(
+            "/api/planner/stores/{store_id}/shopping-list/items/{item_id}",
+            patch(routes::update_store_shopping_list_item)
+                .delete(routes::delete_store_shopping_list_item),
+        )
+        .route(
             "/api/planner/stores/{store_id}/shopping-list/close",
             post(routes::close_store_shopping_list),
         );

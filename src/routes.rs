@@ -222,6 +222,11 @@ pub struct AddShoppingListItemRequest {
 }
 
 #[derive(Deserialize)]
+pub struct UpdateShoppingListItemRequest {
+    quantity: i32,
+}
+
+#[derive(Deserialize)]
 pub struct CreateStandaloneProductRequest {
     name: String,
 }
@@ -746,5 +751,76 @@ pub async fn close_store_shopping_list(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let _ = ensure_active_list_for_store(&pool, store_id, account.user_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn update_store_shopping_list_item(
+    CurrentAccount(account): CurrentAccount,
+    State(pool): State<PgPool>,
+    Path((store_id, item_id)): Path<(i32, i32)>,
+    Json(body): Json<UpdateShoppingListItemRequest>,
+) -> Result<StatusCode, StatusCode> {
+    if body.quantity < 1 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let active_list_id = ensure_active_list_for_store(&pool, store_id, account.user_id).await?;
+    let affected = sqlx::query(
+        r#"
+        UPDATE store_shopping_list_items i
+        SET quantity = $1
+        FROM store_shopping_lists l
+        WHERE i.item_id = $2
+          AND l.list_id = i.list_id
+          AND l.store_id = $3
+          AND l.list_id = $4
+          AND l.status = 'active'
+        "#,
+    )
+    .bind(body.quantity)
+    .bind(item_id)
+    .bind(store_id)
+    .bind(active_list_id)
+    .execute(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .rows_affected();
+
+    if affected == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn delete_store_shopping_list_item(
+    CurrentAccount(account): CurrentAccount,
+    State(pool): State<PgPool>,
+    Path((store_id, item_id)): Path<(i32, i32)>,
+) -> Result<StatusCode, StatusCode> {
+    let active_list_id = ensure_active_list_for_store(&pool, store_id, account.user_id).await?;
+    let affected = sqlx::query(
+        r#"
+        DELETE FROM store_shopping_list_items i
+        USING store_shopping_lists l
+        WHERE i.item_id = $1
+          AND l.list_id = i.list_id
+          AND l.store_id = $2
+          AND l.list_id = $3
+          AND l.status = 'active'
+        "#,
+    )
+    .bind(item_id)
+    .bind(store_id)
+    .bind(active_list_id)
+    .execute(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .rows_affected();
+
+    if affected == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
     Ok(StatusCode::NO_CONTENT)
 }
