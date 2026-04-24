@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth } from './AuthContext'
+import { useAuth } from './useAuth'
 import './LoginPage.css'
 
 export default function LoginPage() {
