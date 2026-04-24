@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from './AuthContext'
+import { useAuth } from './useAuth'
 import LoginPage from './LoginPage'
 import './App.css'
 
@@ -106,39 +106,69 @@ function StorePlanner({ onNavigate, onLogout, username }) {
   async function loadStores() {
     const nextStores = await api('/api/planner/stores')
     setStores(nextStores)
-    if (!selectedStoreId && nextStores.length > 0) {
-      setSelectedStoreId(nextStores[0].store_id)
+    if (nextStores.length > 0) {
+      setSelectedStoreId((current) => current ?? nextStores[0].store_id)
     }
   }
 
   async function loadProducts(storeId) {
     const nextProducts = await api(`/api/planner/stores/${storeId}/products`)
     setProducts(nextProducts)
-    if (nextProducts.length > 0) {
-      setProductId(String(nextProducts[0].store_product_id))
-    } else {
+    const firstProduct = nextProducts[0]
+    if (!firstProduct) {
       setProductId('')
-    }
-  }
-
-  useEffect(() => {
-    loadStores().catch((error) => setPageError(error.message))
-  }, [])
-
-  useEffect(() => {
-    if (!selectedStoreId) return
-    loadProducts(selectedStoreId).catch((error) => setPageError(error.message))
-  }, [selectedStoreId])
-
-  useEffect(() => {
-    if (!productId) {
       setProductZone('')
       return
     }
 
-    const selectedProduct = products.find((product) => String(product.store_product_id) === String(productId))
-    setProductZone(selectedProduct?.aisle_id ? String(selectedProduct.aisle_id) : '')
-  }, [productId, products])
+    setProductId(String(firstProduct.store_product_id))
+    setProductZone(firstProduct.aisle_id ? String(firstProduct.aisle_id) : '')
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    api('/api/planner/stores')
+      .then((nextStores) => {
+        if (cancelled) return
+        setStores(nextStores)
+        if (nextStores.length > 0) {
+          setSelectedStoreId((current) => current ?? nextStores[0].store_id)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setPageError(error.message)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedStoreId) return
+    let cancelled = false
+    api(`/api/planner/stores/${selectedStoreId}/products`)
+      .then((nextProducts) => {
+        if (cancelled) return
+        setProducts(nextProducts)
+        const firstProduct = nextProducts[0]
+        if (!firstProduct) {
+          setProductId('')
+          setProductZone('')
+          return
+        }
+
+        setProductId(String(firstProduct.store_product_id))
+        setProductZone(firstProduct.aisle_id ? String(firstProduct.aisle_id) : '')
+      })
+      .catch((error) => {
+        if (!cancelled) setPageError(error.message)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedStoreId])
 
   async function handleStoreSubmit(event) {
     event.preventDefault()
@@ -245,6 +275,7 @@ function StorePlanner({ onNavigate, onLogout, username }) {
     setNewProductName('')
     await loadProducts(selectedStoreId)
     setProductId(String(product.store_product_id))
+    setProductZone(product.aisle_id ? String(product.aisle_id) : '')
   }
 
   return (
@@ -444,7 +475,17 @@ function StorePlanner({ onNavigate, onLogout, username }) {
           <form onSubmit={handleAssignProduct}>
             <label>
               Product
-              <select value={productId} onChange={(event) => setProductId(event.target.value)}>
+              <select
+                value={productId}
+                onChange={(event) => {
+                  const nextProductId = event.target.value
+                  setProductId(nextProductId)
+                  const selectedProduct = products.find(
+                    (product) => String(product.store_product_id) === String(nextProductId),
+                  )
+                  setProductZone(selectedProduct?.aisle_id ? String(selectedProduct.aisle_id) : '')
+                }}
+              >
                 {products.length === 0 && <option value="">No products for this store</option>}
                 {products.map((product) => (
                   <option key={product.store_product_id} value={product.store_product_id}>
@@ -527,14 +568,6 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     [stores, selectedStoreId],
   )
 
-  async function loadStores() {
-    const nextStores = await api('/api/planner/stores')
-    setStores(nextStores)
-    if (!selectedStoreId && nextStores.length > 0) {
-      setSelectedStoreId(nextStores[0].store_id)
-    }
-  }
-
   async function loadStoreDetails(storeId) {
     const [nextProducts, nextList] = await Promise.all([
       api(`/api/planner/stores/${storeId}/products`),
@@ -542,6 +575,11 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     ])
     setProducts(nextProducts)
     setShoppingList(nextList)
+    const nextQuantities = {}
+    for (const item of nextList?.active_list?.items ?? []) {
+      nextQuantities[item.item_id] = item.quantity
+    }
+    setEditQuantities(nextQuantities)
   }
 
   async function loadStandaloneProducts(query = '') {
@@ -551,37 +589,67 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
   }
 
   useEffect(() => {
-    loadStores()
-      .then(() => loadStandaloneProducts())
-      .catch((error) => setPageError(error.message))
+    let cancelled = false
+    Promise.all([api('/api/planner/stores'), api('/api/planner/standalone-products')])
+      .then(([nextStores, nextStandaloneProducts]) => {
+        if (cancelled) return
+        setStores(nextStores)
+        setStandaloneProducts(nextStandaloneProducts)
+        if (nextStores.length > 0) {
+          setSelectedStoreId((current) => current ?? nextStores[0].store_id)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setPageError(error.message)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
     if (!selectedStoreId) return
-    loadStoreDetails(selectedStoreId).catch((error) => setPageError(error.message))
+    let cancelled = false
+    Promise.all([
+      api(`/api/planner/stores/${selectedStoreId}/products`),
+      api(`/api/planner/stores/${selectedStoreId}/shopping-list`),
+    ])
+      .then(([nextProducts, nextList]) => {
+        if (cancelled) return
+        setProducts(nextProducts)
+        setShoppingList(nextList)
+        const nextQuantities = {}
+        for (const item of nextList?.active_list?.items ?? []) {
+          nextQuantities[item.item_id] = item.quantity
+        }
+        setEditQuantities(nextQuantities)
+      })
+      .catch((error) => {
+        if (!cancelled) setPageError(error.message)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedStoreId])
 
   useEffect(() => {
-    loadStandaloneProducts(standaloneSearch).catch((error) => setPageError(error.message))
+    let cancelled = false
+    const params = new URLSearchParams()
+    if (standaloneSearch.trim()) params.set('q', standaloneSearch.trim())
+    api(`/api/planner/standalone-products?${params.toString()}`)
+      .then((nextStandaloneProducts) => {
+        if (!cancelled) setStandaloneProducts(nextStandaloneProducts)
+      })
+      .catch((error) => {
+        if (!cancelled) setPageError(error.message)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [standaloneSearch])
-
-  useEffect(() => {
-    if (!standaloneAisleId) return
-    const exists = (selectedStore?.layouts ?? []).some(
-      (layout) => String(layout.layout_id) === String(standaloneAisleId),
-    )
-    if (!exists) {
-      setStandaloneAisleId('')
-    }
-  }, [selectedStore, standaloneAisleId])
-
-  useEffect(() => {
-    const next = {}
-    for (const item of shoppingList?.active_list?.items ?? []) {
-      next[item.item_id] = item.quantity
-    }
-    setEditQuantities(next)
-  }, [shoppingList?.active_list?.list_id, shoppingList?.active_list?.items])
 
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase()
@@ -749,7 +817,13 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
           <h2>1) Active + Past Lists</h2>
           <label>
             Store
-            <select value={selectedStoreId ?? ''} onChange={(event) => setSelectedStoreId(Number(event.target.value))}>
+            <select
+              value={selectedStoreId ?? ''}
+              onChange={(event) => {
+                setSelectedStoreId(Number(event.target.value))
+                setStandaloneAisleId('')
+              }}
+            >
               {stores.map((store) => (
                 <option key={store.store_id} value={store.store_id}>
                   {store.name}
