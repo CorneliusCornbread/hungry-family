@@ -1,3 +1,47 @@
+.loading-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid #d1d5db;
+  border-top-color: #0f766e;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.shell-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1rem;
+}
+
+.shell-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 1.2rem;
+}
+
+.shell-card h1 {
+  margin-bottom: 0.45rem;
+}
+
+.shell-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
 .planner-page {
   max-width: 1100px;
   margin: 0 auto;
@@ -11,6 +55,11 @@
   align-items: flex-start;
   gap: 1rem;
   margin-bottom: 1.25rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .lead {
@@ -68,7 +117,7 @@ button.secondary {
 
 .logout {
   width: auto;
-  min-width: 110px;
+  min-width: 96px;
 }
 
 .muted {
@@ -125,7 +174,9 @@ button.secondary {
 }
 
 @media (max-width: 700px) {
-  .planner-header {
+  .planner-header,
+  .shell-actions,
+  .header-actions {
     flex-direction: column;
   }
 

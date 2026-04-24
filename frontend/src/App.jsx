@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './AuthContext'
-import ProtectedRoute from './ProtectedRoute'
 import LoginPage from './LoginPage'
 import './App.css'
 
@@ -33,9 +32,25 @@ function generateLayout(layoutType, start, end) {
     .map((letter) => `Aisle ${letter}`)
 }
 
-function HomePage() {
-  const { account, logout } = useAuth()
+function Dashboard({ onNavigate, onLogout, username }) {
+  return (
+    <main className="shell-page">
+      <section className="shell-card">
+        <h1>Dashboard</h1>
+        <p className="muted">Welcome back, {username}.</p>
+        <p className="muted">This is a starter dashboard shell. We can add cards/widgets here over time.</p>
+        <div className="shell-actions">
+          <button onClick={() => onNavigate('/store-planner')}>Open Store Planner</button>
+          <button className="secondary" onClick={onLogout}>
+            Log out
+          </button>
+        </div>
+      </section>
+    </main>
+  )
+}
 
+function StorePlanner({ onNavigate, onLogout, username }) {
   const [stores, setStores] = useState([])
   const [selectedStoreId, setSelectedStoreId] = useState(null)
   const [storeError, setStoreError] = useState('')
@@ -138,13 +153,18 @@ function HomePage() {
         <div>
           <h1>Store + Layout Planner</h1>
           <p className="lead">
-            Signed in as <strong>{account.username}</strong>. Add stores, define aisle labels, and map
-            products to locations.
+            Signed in as <strong>{username}</strong>. Add stores, define aisle labels, and map products to
+            locations.
           </p>
         </div>
-        <button className="secondary logout" onClick={logout}>
-          Log out
-        </button>
+        <div className="header-actions">
+          <button className="secondary" onClick={() => onNavigate('/dashboard')}>
+            Back to Dashboard
+          </button>
+          <button className="secondary logout" onClick={onLogout}>
+            Log out
+          </button>
+        </div>
       </header>
 
       <div className="planner-grid">
@@ -257,7 +277,7 @@ function HomePage() {
 
         <section className="panel">
           <h2>3) Associate Products</h2>
-          <p className="muted">Connected to the Vite React frontend, ready for API wiring next.</p>
+          <p className="muted">Planner is separated under its own page route at `/store-planner`.</p>
 
           <form onSubmit={handleAddProduct}>
             <label>
@@ -303,10 +323,90 @@ function HomePage() {
   )
 }
 
+function navigateTo(path, setPathname) {
+  window.history.pushState({}, '', path)
+  setPathname(path)
+}
+
+function replaceTo(path, setPathname) {
+  window.history.replaceState({}, '', path)
+  setPathname(path)
+}
+
 export default function App() {
-  return (
-    <ProtectedRoute fallback={LoginPage}>
-      <HomePage />
-    </ProtectedRoute>
-  )
+  const { account, logout } = useAuth()
+  const [pathname, setPathname] = useState(window.location.pathname)
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname)
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  useEffect(() => {
+    if (account === null) return
+
+    if (pathname === '/') {
+      if (account === false) {
+        replaceTo('/login', setPathname)
+      } else {
+        replaceTo('/dashboard', setPathname)
+      }
+    }
+  }, [account, pathname])
+
+  if (account === null) {
+    return (
+      <div className="loading-shell">
+        <span className="spinner" aria-label="Loading session" />
+      </div>
+    )
+  }
+
+  if (pathname === '/login') {
+    if (account !== false) {
+      replaceTo('/dashboard', setPathname)
+      return null
+    }
+    return <LoginPage />
+  }
+
+  if (pathname === '/store-planner') {
+    if (account === false) {
+      replaceTo('/login', setPathname)
+      return null
+    }
+
+    return (
+      <StorePlanner
+        username={account.username}
+        onLogout={async () => {
+          await logout()
+          replaceTo('/login', setPathname)
+        }}
+        onNavigate={(path) => navigateTo(path, setPathname)}
+      />
+    )
+  }
+
+  if (pathname === '/dashboard') {
+    if (account === false) {
+      replaceTo('/login', setPathname)
+      return null
+    }
+
+    return (
+      <Dashboard
+        username={account.username}
+        onLogout={async () => {
+          await logout()
+          replaceTo('/login', setPathname)
+        }}
+        onNavigate={(path) => navigateTo(path, setPathname)}
+      />
+    )
+  }
+
+  replaceTo('/', setPathname)
+  return null
 }
