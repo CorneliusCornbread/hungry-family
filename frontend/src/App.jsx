@@ -641,6 +641,57 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
     await loadStoreDetails(selectedStoreId)
   }
 
+  async function startFromPastList(pastList) {
+    if (!selectedStoreId) return
+
+    const activeItems = shoppingList?.active_list?.items ?? []
+    let strategy = 'add'
+
+    if (activeItems.length > 0) {
+      const response = window
+        .prompt(
+          'Your current active list already has items. Type "overwrite" to replace it, "add" to append past items, or "cancel" to stop.',
+          'add',
+        )
+        ?.trim()
+        .toLowerCase()
+
+      if (!response || response === 'cancel') {
+        return
+      }
+
+      if (response !== 'overwrite' && response !== 'add') {
+        setPageError('Please type "overwrite", "add", or "cancel" when starting from a past list.')
+        return
+      }
+
+      strategy = response
+    }
+
+    setPageError('')
+
+    if (strategy === 'overwrite') {
+      await Promise.all(
+        activeItems.map((item) =>
+          api(`/api/planner/stores/${selectedStoreId}/shopping-list/items/${item.item_id}`, {
+            method: 'DELETE',
+          }),
+        ),
+      )
+    }
+
+    await Promise.all(
+      (pastList.items ?? []).map((item) =>
+        api(`/api/planner/stores/${selectedStoreId}/shopping-list/items`, {
+          method: 'POST',
+          body: JSON.stringify({ store_product_id: item.store_product_id, quantity: item.quantity }),
+        }),
+      ),
+    )
+
+    await loadStoreDetails(selectedStoreId)
+  }
+
   const filteredActiveItems = useMemo(() => {
     const query = activeListSearch.trim().toLowerCase()
     const items = shoppingList?.active_list?.items ?? []
@@ -714,6 +765,9 @@ function ShoppingLists({ onNavigate, onLogout, username }) {
                 <strong>List #{list.list_id}</strong>
                 <div className="muted">{list.items.length} items</div>
                 <div className="muted">{list.items.map((item) => item.product_name).join(', ') || 'No items'}</div>
+                <button type="button" className="secondary" onClick={() => startFromPastList(list)}>
+                  Start new list from this
+                </button>
               </li>
             ))}
           </ul>
