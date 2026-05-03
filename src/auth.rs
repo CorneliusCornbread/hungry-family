@@ -5,14 +5,12 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_extra::extract::CookieJar;
-use rand::{Rng, RngExt};
+use rand::RngExt;
 use sqlx::PgPool;
 use time::OffsetDateTime;
 
 pub const SESSION_COOKIE: &str = "session";
 pub const SESSION_DURATION_DAYS: i64 = 7;
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct Account {
@@ -21,11 +19,7 @@ pub struct Account {
     pub username: String,
 }
 
-/// Axum extractor: resolves the logged-in account from the session cookie.
-/// Returns 303 → /login if no valid session exists.
 pub struct CurrentAccount(pub Account);
-
-// ── Password helpers ──────────────────────────────────────────────────────────
 
 /// Verify a plaintext password against a stored argon2 hash.
 pub fn verify_password(password: &str, hash: &str) -> bool {
@@ -36,8 +30,6 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
 }
-
-// ── Session helpers ───────────────────────────────────────────────────────────
 
 /// Generate a cryptographically-random 32-byte hex session token.
 pub fn generate_session_token() -> String {
