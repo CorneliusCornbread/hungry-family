@@ -6,7 +6,11 @@ use axum::{
     routing::{get, patch, post},
 };
 use sqlx::postgres::PgPoolOptions;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::{
+    services::{ServeDir, ServeFile},
+    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+};
+use tracing::Level;
 
 #[tokio::main]
 async fn main() {
@@ -83,6 +87,11 @@ async fn main() {
 
     let app = api
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
         .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:800")
