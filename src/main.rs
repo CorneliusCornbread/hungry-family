@@ -1,16 +1,22 @@
+#[allow(dead_code)]
 mod auth;
-mod routes;
 
-use axum::{
-    Router,
-    routing::{get, patch, post},
-};
+use askama::Template;
+use axum::{Router, response::Html, routing::get};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::{
-    services::{ServeDir, ServeFile},
+    services::ServeDir,
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
 };
 use tracing::Level;
+
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexTemplate;
+
+async fn index() -> Html<String> {
+    Html(IndexTemplate.render().unwrap())
+}
 
 #[tokio::main]
 async fn main() {
@@ -33,60 +39,9 @@ async fn main() {
 
     tracing::info!("Connected to database");
 
-    let api = Router::new()
-        .route("/api/auth/me", get(routes::me))
-        .route("/api/auth/login", post(routes::login))
-        .route("/api/auth/logout", post(routes::logout))
-        .route("/api/planner/stores", get(routes::planner_stores))
-        .route("/api/planner/stores", post(routes::create_planner_store))
-        .route(
-            "/api/planner/stores/{store_id}",
-            patch(routes::update_planner_store).delete(routes::delete_planner_store),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/layouts",
-            post(routes::create_store_layout),
-        )
-        .route(
-            "/api/planner/layouts/{layout_id}",
-            patch(routes::update_store_layout).delete(routes::delete_store_layout),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/products",
-            get(routes::planner_products).post(routes::create_store_product),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/product-layout",
-            patch(routes::assign_product_layout),
-        )
-        .route(
-            "/api/planner/standalone-products",
-            get(routes::standalone_products).post(routes::create_standalone_product),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/products/from-standalone",
-            post(routes::create_store_product_from_standalone),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/shopping-list",
-            get(routes::store_shopping_list),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/shopping-list/items",
-            post(routes::add_store_shopping_list_item),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/shopping-list/items/{item_id}",
-            patch(routes::update_store_shopping_list_item)
-                .delete(routes::delete_store_shopping_list_item),
-        )
-        .route(
-            "/api/planner/stores/{store_id}/shopping-list/close",
-            post(routes::close_store_shopping_list),
-        );
-
-    let app = api
-        .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
+    let app = Router::new()
+        .route("/", get(index))
+        .fallback_service(ServeDir::new("static"))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(Level::INFO))

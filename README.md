@@ -1,8 +1,8 @@
 # hungry-family
 
-A self-hosted collaborative meal planning and grocery shopping app for the family. Built with a Rust/Axum backend, React frontend, and PostgreSQL database.
+A self-hosted collaborative meal planning and grocery shopping app for the family. Built with a Rust/Axum backend serving HTMX-driven HTML, and a PostgreSQL database.
 
-The core problem it solves: keeping a shared, up-to-date shopping list so you stop defaulting to takeout. Any family member can log in, browse products organized by store aisle, and add items to the active shopping list in real time.
+The core problem it solves: keeping a shared, up-to-date shopping list so you stop defaulting to takeout. Any family member can log in, browse products organized by store aisle, and add items to the active shopping list.
 
 ---
 
@@ -10,7 +10,8 @@ The core problem it solves: keeping a shared, up-to-date shopping list so you st
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 19 + Vite |
+| Frontend | HTMX (vendored, no build step) |
+| Templating | Askama (Rust, compile-time checked) |
 | Backend | Rust (Axum 0.8) |
 | Database | PostgreSQL |
 | Auth | Session cookies + Argon2id password hashing |
@@ -25,20 +26,21 @@ The core problem it solves: keeping a shared, up-to-date shopping list so you st
 ├── src/                    # Rust backend
 │   ├── main.rs             # Server entry point + route registration
 │   ├── auth.rs             # Session management, password verification
-│   ├── routes.rs           # All API handlers
 │   └── bin/
 │       └── hash_password.rs  # Helper binary to hash passwords
-├── frontend/               # React frontend source
-│   └── src/
-│       ├── App.jsx         # Main app + all page components
-│       ├── AuthContext.jsx # Session state provider
-│       ├── LoginPage.jsx   # Login form
-│       └── ...
+├── templates/              # Askama templates (layout + pages + fragments)
 ├── migrations/             # SQL migration files (run in order)
 │   ├── 0001_init.sql
 │   ├── 0002_store_layouts.sql
 │   └── 0003_shopping_lists_v2.sql
-└── static/                 # Built frontend output (served by Axum)
+├── static/                 # Hand-maintained assets (served by Axum)
+│   ├── vendor/htmx.min.js  # Vendored htmx (see version manifest)
+│   ├── vendor/htmx.version # Pinned htmx version (Renovate-tracked)
+│   └── app.css
+├── scripts/
+│   └── vendor-htmx.sh      # Downloads the pinned htmx release
+└── tests/
+    └── htmx_vendor.rs      # Asserts vendored htmx matches the manifest
 ```
 
 ---
@@ -46,8 +48,9 @@ The core problem it solves: keeping a shared, up-to-date shopping list so you st
 ## Prerequisites
 
 - **Rust** (stable, 2024 edition) — [rustup.rs](https://rustup.rs)
-- **Node.js** v20+ and npm
 - **PostgreSQL** (v14+ recommended)
+
+No Node.js or npm — the frontend has no build step.
 
 ---
 
@@ -113,18 +116,7 @@ Repeat for each family member who needs an account.
 
 > **Note:** There are no pre-seeded default users — all accounts must be created manually via SQL. Every family member gets the same permissions; there are no admin roles.
 
-### 4. Build the frontend
-
-```bash
-cd frontend
-npm install
-npm run build
-cd ..
-```
-
-This compiles the React app into `static/`, which Axum serves as static files.
-
-### 5. Run the server
+### 4. Run the server
 
 ```bash
 cargo run
@@ -134,26 +126,26 @@ The server starts on **http://localhost:800** (port 800 requires `cap_net_bind_s
 
 ---
 
+## HTMX dependency management
+
+`htmx.min.js` is vendored into `static/vendor/` and pinned by version in `static/vendor/htmx.version`. [Renovate](https://docs.renovatebot.com/) (GitHub App) watches the manifest via a regex custom manager in `.github/renovate.json` and opens a PR whenever a new htmx release is published. When such a PR lands:
+
+```bash
+scripts/vendor-htmx.sh   # downloads the newly pinned version + prints its sha256
+cargo test               # verifies the vendored file matches the manifest
+```
+
+Install the free Renovate GitHub App on the repository to activate update PRs.
+
+---
+
 ## Development Workflow
 
-For frontend hot-reload during development, run the Vite dev server alongside the Rust backend. The Vite config proxies `/api` requests to the backend at `localhost:800`.
-
 ```bash
-# Terminal 1 — backend
 cargo run
-
-# Terminal 2 — frontend dev server
-cd frontend
-npm run dev
 ```
 
-Frontend dev server runs on **http://localhost:5173** by default.
-
-After making frontend changes for production, rebuild:
-
-```bash
-cd frontend && npm run build
-```
+Edit templates in `templates/` and assets in `static/`, then refresh the browser. Askama templates are compile-time checked, so `cargo check` catches template errors.
 
 ---
 
@@ -179,15 +171,9 @@ Key constraints enforced at the database level:
 
 ---
 
-## Features
+## Status
 
-- **Store Planner** — Create stores, define aisle layouts (numbered, lettered, or custom), and assign products to aisles
-- **Shopping Lists** — One active list per store; add products by browsing aisles or searching; update quantities; remove items
-- **Past Lists** — Closed lists are preserved; you can start a new list from a past one (overwrite or merge)
-- **Standalone Products** — A global product library that can be linked to multiple stores, each with their own aisle assignment
-- **Session Auth** — HTTP-only cookie sessions, 7-day expiry, constant-time password comparison
-
----
+The previous React frontend and its JSON API have been removed. The database schema, migrations, and auth foundation (session management, password verification, `CurrentAccount` extractor) remain in place. The HTMX-based UI is being rebuilt; only the skeleton page exists so far.
 
 ## Notes
 
