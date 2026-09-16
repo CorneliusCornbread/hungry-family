@@ -2,7 +2,7 @@
 /// Prints an argon2id hash suitable for inserting into the accounts table.
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    password_hash::PasswordHasher,
 };
 
 fn main() {
@@ -14,10 +14,9 @@ fn main() {
 
     println!("Hashing password: {}", password);
 
-    let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     let hash = argon2
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .expect("Failed to hash password")
         .to_string();
 

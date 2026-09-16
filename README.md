@@ -26,13 +26,13 @@ The core problem it solves: keeping a shared, up-to-date shopping list so you st
 ├── src/                    # Rust backend
 │   ├── main.rs             # Server entry point + route registration
 │   ├── auth.rs             # Session management, password verification
+│   ├── db.rs               # Database auto-creation + migration runner
+│   ├── setup.rs            # First-run setup wizard (creates the first account)
 │   └── bin/
 │       └── hash_password.rs  # Helper binary to hash passwords
 ├── templates/              # Askama templates (layout + pages + fragments)
-├── migrations/             # SQL migration files (run in order)
-│   ├── 0001_init.sql
-│   ├── 0002_store_layouts.sql
-│   └── 0003_shopping_lists_v2.sql
+├── migrations/             # Embedded SQL migrations (applied automatically at startup)
+│   └── 0001_init.sql
 ├── static/                 # Hand-maintained assets (served by Axum)
 │   ├── vendor/htmx.min.js  # Vendored htmx (see version manifest)
 │   ├── vendor/htmx.version # Pinned htmx version (Renovate-tracked)
@@ -70,59 +70,26 @@ Create a `.env` file in the project root:
 DATABASE_URL=postgres://your_user:your_password@localhost/hungry_family
 ```
 
-### 2. Set up the database
-
-Create the database and run migrations in order:
-
-```sql
--- In psql or your preferred client:
-CREATE DATABASE hungry_family;
-```
-
-Then run each migration file against the database:
-
-```bash
-psql "$DATABASE_URL" -f migrations/0001_init.sql
-psql "$DATABASE_URL" -f migrations/0002_store_layouts.sql
-psql "$DATABASE_URL" -f migrations/0003_shopping_lists_v2.sql
-```
-
-### 3. Seed initial data
-
-The app requires at least one user and account to log in. Use the `hash_password` helper to generate an Argon2id hash for a password:
-
-```bash
-cargo run --bin hash_password -- "your_password_here"
-# Prints the hash to stdout
-```
-
-Then insert a user and account into the database:
-
-```sql
--- Insert a user record
-INSERT INTO users (firstname, lastname, email)
-VALUES ('Jane', 'Smith', 'jane@example.com');
-
--- Insert an account (use the hash printed above)
-INSERT INTO accounts (user_id, username, password_hash)
-VALUES (
-  (SELECT user_id FROM users WHERE email = 'jane@example.com'),
-  'jane',
-  '$argon2id$v=19$...<paste hash here>...'
-);
-```
-
-Repeat for each family member who needs an account.
-
-> **Note:** There are no pre-seeded default users — all accounts must be created manually via SQL. Every family member gets the same permissions; there are no admin roles.
-
-### 4. Run the server
+### 2. Run the server
 
 ```bash
 cargo run
 ```
 
+The backend provisions its own schema on startup:
+
+- It connects to the PostgreSQL server from `DATABASE_URL` and creates the target database if it doesn't exist yet (the connecting role needs `CREATEDB` privileges — the default superuser is fine).
+- Embedded migrations from `migrations/` are applied automatically and tracked in a `_sqlx_migrations` table, so restarts are a no-op. No manual `psql` required.
+
+> **Note:** If an old `hungry_family` database exists from before migrations were tracked, drop it once — the backend will recreate and migrate it from scratch on the next start.
+
 The server starts on **http://localhost:800** (port 800 requires `cap_net_bind_service` on Linux — see `.cargo/config.toml` for the runner configuration that handles this automatically on `x86_64-unknown-linux-gnu`).
+
+### 3. Create the first account
+
+When the accounts table is empty, the first-run setup wizard is served at **http://localhost:800/setup**. Fill in the form to create the first family account; once any account exists, `/setup` redirects to the app instead.
+
+Every family member gets the same permissions; there are no admin roles.
 
 ---
 

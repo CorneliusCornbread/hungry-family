@@ -12,11 +12,20 @@ use time::OffsetDateTime;
 pub const SESSION_COOKIE: &str = "session";
 pub const SESSION_DURATION_DAYS: i64 = 7;
 
+#[derive(Debug, Clone, sqlx::Type, serde::Serialize, serde::Deserialize)]
+#[sqlx(type_name = "account_role", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    Admin,
+    User,
+}
+
 #[derive(Debug, Clone)]
 pub struct Account {
     pub account_id: i32,
     pub user_id: i32,
     pub username: String,
+    pub role: Role,
 }
 
 pub struct CurrentAccount(pub Account);
@@ -61,7 +70,7 @@ pub async fn get_account_by_session(
 ) -> Result<Option<Account>, sqlx::Error> {
     let row = sqlx::query!(
         r#"
-        SELECT a.account_id, a.user_id, a.username
+        SELECT a.account_id, a.user_id, a.username, a.role as "role: Role"
         FROM sessions s
         JOIN accounts a ON a.account_id = s.account_id
         WHERE s.token = $1
@@ -76,6 +85,7 @@ pub async fn get_account_by_session(
         account_id: r.account_id,
         user_id: r.user_id,
         username: r.username,
+        role: r.role
     }))
 }
 
