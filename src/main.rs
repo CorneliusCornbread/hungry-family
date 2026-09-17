@@ -1,9 +1,12 @@
 use askama::Template;
-use axum::extract::State;
+use axum::extract::{FromRef, State};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Router, response::Html, routing::get};
-use sqlx::postgres::PgPoolOptions;
-use std::time::Duration;
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
@@ -17,12 +20,35 @@ mod setup;
 const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
+#[derive(Clone, FromRef)]
+pub(crate) struct AppState {
+    pool: PgPool,
+    setup_required: Arc<AtomicBool>,
+}
+
+impl AppState {
+    async fn new(pg_pool: PgPool) -> Self {
+        let setup_required = setup::setup_required(&pg_pool)
+            .await
+            .expect("Could not query database for app state setup");
+
+        Self {
+            pool: pg_pool,
+            setup_required: Arc::new(AtomicBool::new(setup_required)),
+        }
+    }
+}
+
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate;
 
-async fn index(State(pool): State<PgPool>) -> Html<String> {
-    Html(IndexTemplate.render().unwrap())
+async fn index(State(app_state): State<AppState>) -> Response {
+    if app_state.setup_required.load(Ordering::Acquire) {
+        return Redirect::to("/setup").into_response();
+    }
+
+    Html(IndexTemplate.render().unwrap()).into_response()
 }
 
 #[tokio::main]
@@ -56,6 +82,8 @@ async fn main() {
 
     tracing::info!("Database ready");
 
+    let app_state = AppState::new(pool).await;
+
     let app = Router::new()
         .route("/", get(index))
         .route("/setup", get(setup::get_setup).post(setup::post_setup))
@@ -65,7 +93,7 @@ async fn main() {
                 .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
         )
-        .with_state(pool);
+        .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:800")
         .await

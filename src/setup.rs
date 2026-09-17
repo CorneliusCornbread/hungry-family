@@ -18,7 +18,7 @@ pub struct SetupTemplate;
 
 /// Returns true when the wizard must be shown, i.e. no accounts exist yet.
 pub async fn setup_required(pool: &PgPool) -> Result<bool, sqlx::Error> {
-    let exists: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM accounts LIMIT 1)")
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM accounts)")
         .fetch_one(pool)
         .await?;
     Ok(!exists)

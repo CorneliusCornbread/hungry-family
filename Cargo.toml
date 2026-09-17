@@ -7,7 +7,7 @@ default-run = "hungry-family"
 [dependencies]
 argon2 = "0.6.0"
 askama = "0.16.1"
-axum = "0.8.8"
+axum = { version = "0.8.9", features = ["macros"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 dotenvy = "0.15.7"
 hex = "0.4.3"
