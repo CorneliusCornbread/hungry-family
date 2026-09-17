@@ -57,8 +57,8 @@ pub async fn create_session(pool: &PgPool, account_id: i32) -> Result<String, sq
         account_id,
         expires_at,
     )
-    .execute(pool)
-    .await?;
+        .execute(pool)
+        .await?;
 
     Ok(token)
 }
@@ -78,14 +78,14 @@ pub async fn get_account_by_session(
         "#,
         token,
     )
-    .fetch_optional(pool)
-    .await?;
+        .fetch_optional(pool)
+        .await?;
 
     Ok(row.map(|r| Account {
         account_id: r.account_id,
         user_id: r.user_id,
         username: r.username,
-        role: r.role
+        role: r.role,
     }))
 }
 
@@ -116,15 +116,13 @@ where
             None => Err((
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "error": "Not authenticated" })),
-            )
-                .into_response()),
+            ).into_response()),
             Some(token) => match get_account_by_session(&pool, &token).await {
                 Ok(Some(account)) => Ok(CurrentAccount(account)),
                 Ok(None) => Err((
                     StatusCode::UNAUTHORIZED,
                     Json(serde_json::json!({ "error": "Session expired" })),
-                )
-                    .into_response()),
+                ).into_response()),
                 Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR.into_response()),
             },
         }

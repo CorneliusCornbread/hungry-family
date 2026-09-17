@@ -1,21 +1,23 @@
 # hungry-family
 
-A self-hosted collaborative meal planning and grocery shopping app for the family. Built with a Rust/Axum backend serving HTMX-driven HTML, and a PostgreSQL database.
+A self-hosted collaborative meal planning and grocery shopping app for the family. Built with a Rust/Axum backend
+serving HTMX-driven HTML, and a PostgreSQL database.
 
-The core problem it solves: keeping a shared, up-to-date shopping list so you stop defaulting to takeout. Any family member can log in, browse products organized by store aisle, and add items to the active shopping list.
+The core problem it solves: keeping a shared, up-to-date shopping list so you stop defaulting to takeout. Any family
+member can log in, browse products organized by store aisle, and add items to the active shopping list.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | HTMX (vendored, no build step) |
-| Templating | Askama (Rust, compile-time checked) |
-| Backend | Rust (Axum 0.8) |
-| Database | PostgreSQL |
-| Auth | Session cookies + Argon2id password hashing |
-| ORM | SQLx (compile-time verified queries) |
+| Layer      | Technology                                  |
+|------------|---------------------------------------------|
+| Frontend   | HTMX (vendored, no build step)              |
+| Templating | Askama (Rust, compile-time checked)         |
+| Backend    | Rust (Axum 0.8)                             |
+| Database   | PostgreSQL                                  |
+| Auth       | Session cookies + Argon2id password hashing |
+| ORM        | SQLx (compile-time verified queries)        |
 
 ---
 
@@ -78,16 +80,21 @@ cargo run
 
 The backend provisions its own schema on startup:
 
-- It connects to the PostgreSQL server from `DATABASE_URL` and creates the target database if it doesn't exist yet (the connecting role needs `CREATEDB` privileges — the default superuser is fine).
-- Embedded migrations from `migrations/` are applied automatically and tracked in a `_sqlx_migrations` table, so restarts are a no-op. No manual `psql` required.
+- It connects to the PostgreSQL server from `DATABASE_URL` and creates the target database if it doesn't exist yet (the
+  connecting role needs `CREATEDB` privileges — the default superuser is fine).
+- Embedded migrations from `migrations/` are applied automatically and tracked in a `_sqlx_migrations` table, so
+  restarts are a no-op. No manual `psql` required.
 
-> **Note:** If an old `hungry_family` database exists from before migrations were tracked, drop it once — the backend will recreate and migrate it from scratch on the next start.
+> **Note:** If an old `hungry_family` database exists from before migrations were tracked, drop it once — the backend
+> will recreate and migrate it from scratch on the next start.
 
-The server starts on **http://localhost:800** (port 800 requires `cap_net_bind_service` on Linux — see `.cargo/config.toml` for the runner configuration that handles this automatically on `x86_64-unknown-linux-gnu`).
+The server starts on **http://localhost:800** (port 800 requires `cap_net_bind_service` on Linux — see
+`.cargo/config.toml` for the runner configuration that handles this automatically on `x86_64-unknown-linux-gnu`).
 
 ### 3. Create the first account
 
-When the accounts table is empty, the first-run setup wizard is served at **http://localhost:800/setup**. Fill in the form to create the first family account; once any account exists, `/setup` redirects to the app instead.
+When the accounts table is empty, the first-run setup wizard is served at **http://localhost:800/setup**. Fill in the
+form to create the first family account; once any account exists, `/setup` redirects to the app instead.
 
 Every family member gets the same permissions; there are no admin roles.
 
@@ -95,7 +102,9 @@ Every family member gets the same permissions; there are no admin roles.
 
 ## HTMX dependency management
 
-`htmx.min.js` is vendored into `static/vendor/` and pinned by version in `static/vendor/htmx.version`. [Renovate](https://docs.renovatebot.com/) (GitHub App) watches the manifest via a regex custom manager in `.github/renovate.json` and opens a PR whenever a new htmx release is published. When such a PR lands:
+`htmx.min.js` is vendored into `static/vendor/` and pinned by version in
+`static/vendor/htmx.version`. [Renovate](https://docs.renovatebot.com/) (GitHub App) watches the manifest via a regex
+custom manager in `.github/renovate.json` and opens a PR whenever a new htmx release is published. When such a PR lands:
 
 ```bash
 scripts/vendor-htmx.sh   # downloads the newly pinned version + prints its sha256
@@ -112,25 +121,27 @@ Install the free Renovate GitHub App on the repository to activate update PRs.
 cargo run
 ```
 
-Edit templates in `templates/` and assets in `static/`, then refresh the browser. Askama templates are compile-time checked, so `cargo check` catches template errors.
+Edit templates in `templates/` and assets in `static/`, then refresh the browser. Askama templates are compile-time
+checked, so `cargo check` catches template errors.
 
 ---
 
 ## Database Schema Overview
 
-| Table | Purpose |
-|---|---|
-| `users` | Family member profiles (name, email) |
-| `accounts` | Login credentials (username + Argon2id hash) |
-| `sessions` | Active session tokens with expiry |
-| `stores` | Store definitions (e.g. Woodman's, Costco) |
-| `store_layouts` | Aisle/section labels for each store, with sort order |
-| `standalone_products` | Global product catalog (name-deduped across stores) |
-| `store_products` | Per-store product entries with aisle assignment |
-| `store_shopping_lists` | One active list per store at a time |
-| `store_shopping_list_items` | Items on a list with quantity |
+| Table                       | Purpose                                              |
+|-----------------------------|------------------------------------------------------|
+| `users`                     | Family member profiles (name, email)                 |
+| `accounts`                  | Login credentials (username + Argon2id hash)         |
+| `sessions`                  | Active session tokens with expiry                    |
+| `stores`                    | Store definitions (e.g. Woodman's, Costco)           |
+| `store_layouts`             | Aisle/section labels for each store, with sort order |
+| `standalone_products`       | Global product catalog (name-deduped across stores)  |
+| `store_products`            | Per-store product entries with aisle assignment      |
+| `store_shopping_lists`      | One active list per store at a time                  |
+| `store_shopping_list_items` | Items on a list with quantity                        |
 
 Key constraints enforced at the database level:
+
 - Only one `active` shopping list per store at a time (partial unique index)
 - `quantity` must be > 0
 - Product and user display names cannot be blank
@@ -140,7 +151,9 @@ Key constraints enforced at the database level:
 
 ## Status
 
-The previous React frontend and its JSON API have been removed. The database schema, migrations, and auth foundation (session management, password verification, `CurrentAccount` extractor) remain in place. The HTMX-based UI is being rebuilt; only the skeleton page exists so far.
+The previous React frontend and its JSON API have been removed. The database schema, migrations, and auth foundation
+(session management, password verification, `CurrentAccount` extractor) remain in place. The HTMX-based UI is being
+rebuilt; only the skeleton page exists so far.
 
 ## Notes
 

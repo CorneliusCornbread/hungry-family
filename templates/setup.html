@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block title %}Setup — hungry-family{% endblock %}
+
+{% block content %}
+<main class="shell">
+  <section class="card">
+    <h1>Welcome</h1>
+    <p class="muted">
+      Create the first family account to get started.
+    </p>
+    <form method="post" action="/setup">
+      <input type="text" name="firstname" placeholder="First name" required />
+      <input type="text" name="lastname" placeholder="Last name" required />
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="text" name="username" placeholder="Username" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit">Create account</button>
+    </form>
+  </section>
+</main>
+{% endblock %}

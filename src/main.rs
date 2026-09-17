@@ -1,7 +1,9 @@
-use std::time::Duration;
 use askama::Template;
+use axum::extract::State;
 use axum::{Router, response::Html, routing::get};
 use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
+use sqlx::PgPool;
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
@@ -12,14 +14,14 @@ mod auth;
 mod db;
 mod setup;
 
-const AQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
+const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate;
 
-async fn index() -> Html<String> {
+async fn index(State(pool): State<PgPool>) -> Html<String> {
     Html(IndexTemplate.render().unwrap())
 }
 
@@ -42,7 +44,7 @@ async fn main() {
 
     let pool = PgPoolOptions::new()
         .max_connections(10)
-        .acquire_timeout(AQUIRE_TIMEOUT)
+        .acquire_timeout(ACQUIRE_TIMEOUT)
         .idle_timeout(IDLE_TIMEOUT)
         .connect(&database_url)
         .await
