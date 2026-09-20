@@ -1,0 +1,10 @@
+<form hx-post="/setup" hx-swap="outerHTML" hx-target="this">
+    {% if let Some(error) = error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    <input name="firstname" type="text" value="{{ form.firstname }}">
+    <input name="lastname" type="text" value="{{ form.lastname }}">
+    <input name="email" type="email" value="{{ form.email }}">
+    <input name="password" type="password">
+    <button type="submit">Submit</button>
+</form>

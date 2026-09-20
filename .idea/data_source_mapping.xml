@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/src/auth.rs" value="195a9e1f-4dff-4b8a-9ecf-80c1a7be2b71" />
+    <file url="file://$PROJECT_DIR$/src/setup/mod.rs" value="195a9e1f-4dff-4b8a-9ecf-80c1a7be2b71" />
+  </component>
+</project>
