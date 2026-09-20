@@ -44,7 +44,7 @@ pub struct SetupForm {
     pub email: String,
 }
 
-pub async fn post_setup(State(pool): State<PgPool>, _form: Form<SetupForm>) -> Response {
+pub async fn post_setup(State(pool): State<PgPool>, form: Form<SetupForm>) -> Response {
     if !setup_required(&pool).await.unwrap_or(false) {
         return Redirect::to("/").into_response();
     }
@@ -53,6 +53,23 @@ pub async fn post_setup(State(pool): State<PgPool>, _form: Form<SetupForm>) -> R
     // TODO: hash_password(&form.password), then insert the user and account
     //       rows in a single transaction
     Redirect::to("/").into_response()
+}
+
+fn is_valid_email(email: &str, pool: &PgPool) -> bool {
+    let mut tld_split = email.split("@");
+
+    if tld_split.clone().count() != 2 {
+        return false;
+    }
+
+    let username = tld_split.next().unwrap();
+    let tld = tld_split.next().unwrap();
+
+    if username.contains("..") {
+        return false;
+    }
+
+    true
 }
 
 /// Hash a plaintext password with Argon2id (same parameters as `hash_password` bin).
